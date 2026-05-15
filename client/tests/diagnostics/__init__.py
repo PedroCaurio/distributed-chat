@@ -1,0 +1,1 @@
+"""Diagnósticos leves do proxy."""
