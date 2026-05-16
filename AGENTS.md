@@ -80,10 +80,10 @@ Estamos desenvolvendo um trabalho acadêmico de Sistemas Distribuídos que consi
 
 ## Arquitetura do Sistema (100% web — demonstração em aula)
 
-### 1. Servidor unificado (Render — 2 instâncias + LB HTTP)
+### 1. Servidor unificado (Fly.io free — 2 instâncias + LB HTTP)
 - **Linguagem:** Python 3 + FastAPI
-- **Infraestrutura:** Duas instâncias Web Service no Render (`render.yaml`), load balancer HTTP nativo.
-- **Estado:** Redis (Upstash) — histórico, sessões web, pub/sub entre instâncias.
+- **Infraestrutura:** Fly.io free tier (`fly scale count 2`) ou Render free (1 instância, $0).
+- **Estado:** Redis (Upstash free) — histórico, sessões web, pub/sub entre instâncias.
 - **Failover:** Ao cair uma instância, o navegador reconecta SSE, recupera histórico via `/history?since=` e mantém `session_id` no Redis.
 
 ### 2. Frontend (React — mesmo deploy)
@@ -99,7 +99,7 @@ Estamos desenvolvendo um trabalho acadêmico de Sistemas Distribuídos que consi
 ## 🛠️ Stack Tecnológica
 - **Servidor & Cliente Proxy:** Python (bibliotecas `socket`, `threading`, `redis`, e `FastAPI` para a ponte HTTP).
 - **Frontend:** React (Vite, Axios, TailwindCSS para estilização amigável).
-- **Infraestrutura:** Render (Servidor Backend), Vercel (Frontend UI), Upstash ou Redis Cloud (Redis DB).
+- **Infraestrutura:** Fly.io ou Render Free (app única Docker com front+API), Upstash Redis (free).
 
 ---
 

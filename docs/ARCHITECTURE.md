@@ -7,7 +7,7 @@ flowchart LR
   subgraph Browser
     FE[React SPA]
   end
-  subgraph Render["Render (2 instâncias + LB HTTP)"]
+  subgraph Cloud["Fly.io free (2 VMs + LB) ou Render free (1 VM)"]
     I1[Instância A]
     I2[Instância B]
   end
@@ -27,7 +27,7 @@ flowchart LR
 | API | FastAPI + Uvicorn | `POST /login`, `POST /messages`, `GET /events` (SSE) |
 | Concorrência | `threading` | Uma thread por conexão TCP (opcional); pub/sub Redis em thread dedicada; SSE bloqueia em `Queue.get` por cliente |
 | Estado | Redis (Upstash) | Histórico, sessões web, pub/sub entre instâncias |
-| Infra | Render Web Service × 2 | Load balancer HTTP nativo |
+| Infra | Fly.io × 2 (free) ou Render × 1 (free) | LB HTTP no Fly; Render free = 1 instância |
 
 ## Fluxo de login
 

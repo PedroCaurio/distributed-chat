@@ -1,13 +1,13 @@
-# Blueprint Render — chat 100% web, 2 instâncias com load balancer HTTP.
-# Conecte o repositório GitHub e defina REDIS_URL no painel (Upstash).
+# Render FREE — 1 instância, US$ 0/mês (não suporta 2 instâncias no plano gratuito).
+# Para 2 instâncias + LB sem custo, use Fly.io: docs/DEPLOY_FREE.md
 
 services:
   - type: web
     name: distributed-chat
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
-    numInstances: 2
+    plan: free
+    numInstances: 1
     healthCheckPath: /health
     envVars:
       - key: REDIS_URL

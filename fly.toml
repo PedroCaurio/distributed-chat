@@ -1,2 +1,28 @@
-# DEPRECADO: use deploy Render (Dockerfile + render.yaml).
-# O chat 100% web não usa Fly.io nesta versão.
+# fly.toml app configuration file generated for distributed-chat-teste on 2026-05-16T15:39:26-03:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'distributed-chat-teste'
+primary_region = 'gru'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  ENABLE_TCP_SERVER = 'false'
+  HISTORY_MAX = '500'
+  PUBSUB_CHANNEL = 'chat:broadcast'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '256mb'
+  cpus = 1
+  memory_mb = 256

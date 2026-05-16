@@ -14,6 +14,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 ENV ENABLE_TCP_SERVER=false
+ENV PORT=8080
 
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
@@ -22,5 +23,5 @@ COPY common /app/common
 COPY server /app/server
 COPY --from=frontend-build /fe/dist /app/frontend/dist
 
-EXPOSE 10000
+EXPOSE 8080
 CMD ["python", "-m", "server"]
