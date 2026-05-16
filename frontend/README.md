@@ -1,42 +1,30 @@
-# Front-end — Zenith Chat (React + Vite)
+# Front-end (React + Vite)
 
-Interface web que conversa com o **proxy Python** (`client/`) via HTTP e SSE.
-
-## Pré-requisitos
-
-- Node.js 20+
-- Proxy rodando em `http://127.0.0.1:5000` (ou URL configurada)
-
-## Instalação
-
-```bash
-cd frontend
-npm install
-```
+Interface do chat. Em produção o build é embutido no Docker e servido pelo `server/` na mesma URL Fly.io.
 
 ## Desenvolvimento
 
 ```bash
+npm install
 npm run dev
 ```
 
-Abre em `http://localhost:5173`. O Vite encaminha `/api/*` para o proxy local (ver `vite.config.ts`).
-
-## Variáveis de ambiente
-
-Copie `.env.example` para `.env` se precisar apontar para outro host:
+Configure `frontend/.env`:
 
 ```env
-VITE_PROXY_URL=http://127.0.0.1:5000
+VITE_API_URL=/api
 ```
 
-Se `VITE_PROXY_URL` não estiver definida, o front usa `/api` (proxy do Vite em dev).
+O `vite.config.ts` encaminha `/api` para `http://127.0.0.1:8080` (servidor local).
 
-## Build de produção
+## Build
 
 ```bash
 npm run build
-npm run preview
 ```
 
-Para deploy na Vercel, configure `VITE_PROXY_URL` com a URL **acessível pelo navegador do usuário** do proxy (em avaliação local, normalmente `http://127.0.0.1:5000`).
+Saída em `dist/` — copiada automaticamente pelo `Dockerfile` na raiz.
+
+## Deploy
+
+Não publique o front separadamente. Use o deploy unificado: [../docs/DEPLOY.md](../docs/DEPLOY.md).

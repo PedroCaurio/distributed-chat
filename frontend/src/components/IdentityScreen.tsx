@@ -72,7 +72,7 @@ export default function IdentityScreen({ onLogin }: IdentityScreenProps) {
             </button>
           </form>
           <p className="identity-hint">
-            Acesse pelo link público do deploy (Render). Nenhuma instalação local é necessária.
+            Use o link público do chat (Fly.io). Nenhuma instalação no computador é necessária.
           </p>
         </section>
       </div>

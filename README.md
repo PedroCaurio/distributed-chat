@@ -1,35 +1,16 @@
 # distributed-chat
 
-Chat multiusuário **100% web**, **US$ 0** na operação recomendada: **Fly.io** (2 instâncias) + **Upstash** (Redis free).
+Chat multiusuário **100% web** — **Fly.io** (2 instâncias) + **Upstash** (Redis), **US$ 0** no free tier.
 
 ## Demonstração em aula
 
-1. Abra a URL pública (ex.: `https://seu-app.fly.dev`).
-2. Login com username → sala global.
-3. **Nada para instalar.**
+1. Abra `https://SEU_APP.fly.dev` (após deploy).
+2. Login com username → converse na sala global.
+3. **Nada para instalar** no PC dos alunos.
 
-## Deploy gratuito (escolha uma)
+## Deploy
 
-| Opção | Custo | 2 instâncias / LB | Guia |
-| --- | --- | --- | --- |
-| **Fly.io + Upstash** | $0 | Sim | [docs/DEPLOY_FREE.md](docs/DEPLOY_FREE.md) |
-| **Render + Upstash** | $0 | Não (só 1 instância) | [docs/DEPLOY_RENDER.md](docs/DEPLOY_RENDER.md) |
-
-> Render **Starter** com 2 instâncias ≈ **US$ 7/mês**. O `render.yaml` do repo usa **plan: free** e **1 instância** para evitar isso.
-
-## Estrutura
-
-```text
-distributed-chat/
-├── frontend/     # React (embutido no Docker)
-├── server/       # FastAPI + SSE + Redis
-├── Dockerfile    # Build único (Fly ou Render)
-├── fly.toml      # 2 VMs free (recomendado)
-├── render.yaml   # 1 instância free (alternativa)
-└── docs/
-```
-
-## Comandos rápidos (Fly — recomendado)
+Guia completo: **[docs/DEPLOY.md](docs/DEPLOY.md)**
 
 ```powershell
 fly auth login
@@ -40,27 +21,57 @@ fly scale count 2
 fly open
 ```
 
+## Estrutura
+
+```text
+distributed-chat/
+├── frontend/       # React
+├── server/         # FastAPI + SSE + Redis
+├── common/         # Protocolo TCP (legado)
+├── legacy/client/  # Proxy local (opcional, relatório)
+├── Dockerfile
+├── fly.toml
+└── docs/
+```
+
 ## Desenvolvimento local
 
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-$env:PORT="8080"; $env:REDIS_URL="rediss://..."; $env:PYTHONPATH=(Get-Location).Path
+# .env: REDIS_URL + PORT=8080
+$env:PYTHONPATH = (Get-Location).Path
 python -m server
 ```
 
 ```bash
-cd frontend && npm run dev
+cd frontend && npm install && npm run dev
 ```
 
-## Documentação
-
-- [docs/DEPLOY_FREE.md](docs/DEPLOY_FREE.md) — **principal, $0**
-- [docs/DEPLOY_RENDER.md](docs/DEPLOY_RENDER.md) — Render free (1 instância)
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [docs/PAYLOADS.md](docs/PAYLOADS.md)
+`frontend/.env`: `VITE_API_URL=/api`
 
 ## Testes
 
 ```powershell
+$env:PYTHONPATH = (Get-Location).Path
 python -m pytest -q
 ```
+
+## Documentação
+
+| Arquivo | Conteúdo |
+| --- | --- |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Deploy Fly.io |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitetura |
+| [docs/PAYLOADS.md](docs/PAYLOADS.md) | API HTTP |
+
+## Requisitos acadêmicos
+
+| Requisito | Atendimento |
+| --- | --- |
+| Navegador, sem instalar | URL pública Fly |
+| Servidor online | Fly.io |
+| Threads | TCP opcional + pub/sub + SSE |
+| Tolerância a falhas | 2 VMs + Redis + reconexão SSE |
+| Histórico | Redis |

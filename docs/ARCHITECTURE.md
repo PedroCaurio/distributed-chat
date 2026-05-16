@@ -1,4 +1,4 @@
-# Arquitetura — chat 100% web
+# Arquitetura do sistema
 
 ## Visão geral
 
@@ -7,7 +7,7 @@ flowchart LR
   subgraph Browser
     FE[React SPA]
   end
-  subgraph Cloud["Fly.io free (2 VMs + LB) ou Render free (1 VM)"]
+  subgraph Fly["Fly.io — 2 VMs + LB HTTP"]
     I1[Instância A]
     I2[Instância B]
   end
@@ -23,41 +23,47 @@ flowchart LR
 
 | Camada | Tecnologia | Papel |
 | --- | --- | --- |
-| Front-end | React (Vite), servido pelo mesmo deploy | UI no navegador — **zero instalação** |
-| API | FastAPI + Uvicorn | `POST /login`, `POST /messages`, `GET /events` (SSE) |
-| Concorrência | `threading` | Uma thread por conexão TCP (opcional); pub/sub Redis em thread dedicada; SSE bloqueia em `Queue.get` por cliente |
-| Estado | Redis (Upstash) | Histórico, sessões web, pub/sub entre instâncias |
-| Infra | Fly.io × 2 (free) ou Render × 1 (free) | LB HTTP no Fly; Render free = 1 instância |
+| Front-end | React (Vite), servido pelo mesmo container | UI — **zero instalação** |
+| API | FastAPI + Uvicorn (`server/`) | Login, mensagens, SSE |
+| Estado | Redis (Upstash) | Histórico, sessões, pub/sub |
+| Infra | Fly.io × 2 (`fly scale count 2`) | Load balancer HTTP |
 
-## Fluxo de login
+## Fluxo de dados
 
-1. Navegador `POST /login` com `username`.
-2. Instância cria `session_id` no Redis (TTL 5 min, renovável).
-3. Resposta `welcome` inclui `history`.
-4. Front guarda `session_id` em `localStorage`.
+1. Navegador carrega SPA em `https://app.fly.dev/`.
+2. `POST /login` → sessão em Redis + histórico.
+3. `GET /events?session=...` (SSE) — recepção bloqueante por conexão (`Queue.get`).
+4. `POST /messages` → persiste e publica no pub/sub → todas as VMs entregam aos SSE locais.
 
-## Fluxo de mensagem
+## Failover
 
-1. `POST /messages` com header `X-Session-Id`.
-2. Servidor grava em `chat:history` e publica no canal pub/sub.
-3. Todas as instâncias recebem o evento e enviam às filas SSE locais.
+1. VM cai → SSE desconecta.
+2. LB roteia reconexão para outra VM.
+3. Mesmo `session_id` no Redis → usuário continua logado.
+4. `GET /history?since=` recupera mensagens perdidas.
+5. UI: *“Conexão restabelecida”*.
 
-## Failover (professor derruba uma instância)
+## Estrutura do repositório
 
-1. SSE da instância morta cai → navegador reconecta (outra instância via LB).
-2. Mesmo `session_id` no Redis → usuário continua autenticado.
-3. Front chama `GET /history?since=...` e recupera mensagens perdidas.
-4. Banner discreto: “Conexão restabelecida”.
-5. **Sem logout**, sem perder username, sem reinstalar nada.
+```text
+distributed-chat/
+├── frontend/          # React (build → frontend/dist no Docker)
+├── server/            # API HTTP, chat_core, Redis, SSE
+├── common/            # Protocolo NDJSON (TCP legado)
+├── legacy/client/     # Proxy local (não usado em produção)
+├── Dockerfile
+├── fly.toml
+└── docs/
+```
 
-## Pasta `client/` (legado)
+## Threads (requisito acadêmico)
 
-O proxy local (`client/`) permanece no repositório para desenvolvimento e referência acadêmica (thread `recv` + ponte HTTP), mas **não é necessário** na demonstração em aula.
+| Componente | Mecanismo |
+| --- | --- |
+| Servidor TCP (opcional, `ENABLE_TCP_SERVER`) | 1 thread por conexão (`server/session.py`) |
+| Pub/sub Redis | Thread dedicada (`redis-pubsub`) |
+| Cliente web (SSE) | Loop bloqueante em `Queue.get` por conexão |
 
-## Pasta `server/`
+## Deploy
 
-- `main.py` — entrada unificada HTTP + TCP opcional
-- `http_app.py` — rotas web
-- `chat_core.py` — regras de negócio
-- `session.py` — clientes TCP nativos (opcional)
-- `redis_service.py` — persistência e pub/sub
+Ver [DEPLOY.md](./DEPLOY.md).

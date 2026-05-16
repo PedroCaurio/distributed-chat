@@ -1,22 +1,21 @@
 # Contratos de API (HTTP — produção)
 
-Em produção o navegador fala **somente HTTP/HTTPS** com o servidor Render. O protocolo NDJSON/TCP permanece documentado na seção [TCP legado](#tcp-legado-ndjson).
-
-Base URL: `https://SEU_APP.onrender.com` (mesma origem do front após deploy).
+Em produção o navegador fala **somente HTTP/HTTPS** com o app no Fly.io.  
+Base URL: `https://SEU_APP.fly.dev` (mesma origem do front após deploy).
 
 Headers comuns:
 
 | Header | Uso |
 | --- | --- |
 | `Content-Type` | `application/json` em POST |
-| `X-Session-Id` | Sessão após login (mensagens, heartbeat, histórico) |
+| `X-Session-Id` | Sessão após login |
 
 ---
 
 ## `GET /health`
 
 ```json
-{"status":"ok","instance":"render-instance-id"}
+{"status":"ok","instance":"fly-machine-id"}
 ```
 
 ---
@@ -34,8 +33,8 @@ Body:
 ```json
 {
   "type":"welcome",
-  "session_id":"abc123...",
-  "client_id":"abc123...",
+  "session_id":"abc123",
+  "client_id":"abc123",
   "username":"alice",
   "history":[{"username":"bob","text":"oi","ts":1710000000.123,"id":"uuid"}]
 }
@@ -77,8 +76,6 @@ Headers: `X-Session-Id` — renova TTL da sessão (5 min).
 
 Headers: `X-Session-Id`
 
-Retorna mensagens com `ts` **maior** que `since` (recuperação após failover).
-
 ```json
 {"messages":[{"username":"...","text":"...","ts":...,"id":"..."}]}
 ```
@@ -87,21 +84,20 @@ Retorna mensagens com `ts` **maior** que `since` (recuperação após failover).
 
 ## `GET /events?session={session_id}`
 
-SSE. Cada frame:
+SSE:
 
 ```
 data: {"type":"chat","username":"alice","text":"Oi","ts":1710000000.123,"id":"uuid"}
 
 data: {"type":"user_joined","username":"bob","ts":1710000000.5}
-
 ```
 
-Keep-alive: linhas `: keepalive`
+Keep-alive: `: keepalive`
 
 ---
 
 ## TCP legado (NDJSON)
 
-Uma linha JSON + `\n` por frame. Tipos: `login`, `message`, `welcome`, `chat`, `error`, `user_joined`, `user_left`, `ping`, `pong`.
+Documentado para `legacy/client/` e `ENABLE_TCP_SERVER=true` em dev.
 
-Usado por `client/` (proxy local) e porta TCP opcional (`ENABLE_TCP_SERVER=true`).
+Tipos: `login`, `message`, `welcome`, `chat`, `error`, `user_joined`, `user_left`, `ping`, `pong`.

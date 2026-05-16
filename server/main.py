@@ -1,7 +1,7 @@
 """
 Ponto de entrada unificado: API HTTP (100% web) + servidor TCP opcional em thread.
 
-Deploy Render: escale para 2 instâncias; o load balancer HTTP distribui tráfego.
+Deploy Fly.io: escale com ``fly scale count 2``; o load balancer HTTP distribui tráfego.
 Estado e pub/sub no Redis garantem continuidade quando uma instância cai.
 """
 

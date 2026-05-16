@@ -57,7 +57,7 @@ def create_http_app(state: AppState) -> FastAPI:
     def health() -> dict[str, Any]:
         return {
             "status": "ok",
-            "instance": os.getenv("RENDER_INSTANCE_ID", "local"),
+            "instance": os.getenv("FLY_MACHINE_ID", os.getenv("HOSTNAME", "local")),
         }
 
     @app.post("/login")

@@ -1,7 +1,5 @@
-# fly.toml app configuration file generated for distributed-chat-teste on 2026-05-16T15:39:26-03:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# Fly.io — deploy: docs/DEPLOY.md
+# App name: altere se necessário ou use fly launch --name SEU_NOME
 
 app = 'distributed-chat-teste'
 primary_region = 'gru'
@@ -24,5 +22,5 @@ primary_region = 'gru'
 
 [[vm]]
   memory = '256mb'
+  cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 256
