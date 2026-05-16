@@ -15,7 +15,10 @@
 **/downloads
 **/eggs
 **/.eggs
-**/lib
+# Python lib/ (não confundir com frontend/src/lib/)
+**/.venv/lib
+**/venv/lib
+**/lib/python*
 **/lib64
 **/parts
 **/sdist
@@ -236,4 +239,4 @@ frontend/**/node_modules
 frontend/**/dist
 frontend/**/.vite
 frontend/**/*.local
-fly.toml
+# fly.toml não precisa estar na imagem, mas não quebra o build se copiado
