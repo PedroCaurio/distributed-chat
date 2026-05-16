@@ -25,6 +25,7 @@ class MessageType(str, Enum):
     USER_LEFT = "user_left"
     ERROR = "error"
     HISTORY = "history"
+    HISTORY_SINCE = "history_since"
     PING = "ping"
     PONG = "pong"
 

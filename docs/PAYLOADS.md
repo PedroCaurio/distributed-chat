@@ -1,103 +1,79 @@
-# Contratos de API (HTTP — produção)
+# Contratos de mensagens
 
-Em produção o navegador fala **somente HTTP/HTTPS** com o app no Fly.io.  
-Base URL: `https://SEU_APP.fly.dev` (mesma origem do front após deploy).
+## HTTP (navegador → cliente)
 
-Headers comuns:
+Base URL: `https://SEU_APP.fly.dev` (mesma origem do React após deploy).
 
-| Header | Uso |
-| --- | --- |
-| `Content-Type` | `application/json` em POST |
-| `X-Session-Id` | Sessão após login |
+Headers comuns após login: `X-Session-Id: <session_id>`.
 
----
-
-## `GET /health`
+### `POST /login`
 
 ```json
-{"status":"ok","instance":"fly-machine-id"}
+{ "username": "pedro" }
 ```
 
----
-
-## `POST /login`
-
-Body:
-
-```json
-{"username":"alice"}
-```
-
-200:
+Resposta 200:
 
 ```json
 {
-  "type":"welcome",
-  "session_id":"abc123",
-  "client_id":"abc123",
-  "username":"alice",
-  "history":[{"username":"bob","text":"oi","ts":1710000000.123,"id":"uuid"}]
+  "type": "welcome",
+  "session_id": "abc...",
+  "client_id": "...",
+  "username": "pedro",
+  "history": [{ "id": "...", "username": "...", "text": "...", "ts": 1.0 }]
 }
 ```
 
-401:
+### `POST /messages`
 
 ```json
-{"type":"error","message":"username já está em uso"}
+{ "text": "Olá!" }
 ```
 
----
+### `GET /events?session=<session_id>`
 
-## `POST /messages`
+SSE (`text/event-stream`). Eventos: `chat`, `user_joined`, `user_left`.
 
-Headers: `X-Session-Id`
-
-Body:
+### `GET /history?since=<timestamp>`
 
 ```json
-{"text":"Olá!"}
+{ "messages": [ ... ] }
 ```
 
-200:
+### `POST /heartbeat`
+
+Mantém sessão TCP viva (`ping` no socket).
+
+### `POST /logout`
+
+Encerra conexão TCP da sessão.
+
+---
+
+## TCP (cliente → servidor)
+
+Uma linha UTF-8 = um JSON (NDJSON). Ver `common/protocol.py`.
+
+| type | Direção | Descrição |
+|------|---------|-----------|
+| `login` | → servidor | Primeiro frame após conectar |
+| `welcome` | ← servidor | OK + histórico |
+| `message` | → servidor | Enviar chat |
+| `chat` | ← servidor | Broadcast |
+| `user_joined` / `user_left` | ← servidor | Presença |
+| `history_since` | → servidor | Recuperar após `since` |
+| `history` | ← servidor | Lista de mensagens |
+| `ping` / `pong` | ↔ | Heartbeat |
+| `error` | ← servidor | Erro |
+
+Exemplo envio:
 
 ```json
-{"status":"enqueued"}
+{"type":"message","text":"Olá"}
 ```
 
----
-
-## `POST /heartbeat`
-
-Headers: `X-Session-Id` — renova TTL da sessão (5 min).
-
----
-
-## `GET /history?since=1710000000.0`
-
-Headers: `X-Session-Id`
+Exemplo recepção:
 
 ```json
-{"messages":[{"username":"...","text":"...","ts":...,"id":"..."}]}
+{"type":"chat","id":"...","username":"maria","text":"Oi","ts":1715000000.0}
 ```
-
----
-
-## `GET /events?session={session_id}`
-
-SSE:
-
-```
-data: {"type":"chat","username":"alice","text":"Oi","ts":1710000000.123,"id":"uuid"}
-
-data: {"type":"user_joined","username":"bob","ts":1710000000.5}
-```
-
-Keep-alive: `: keepalive`
-
----
-
-## TCP legado (NDJSON)
-
-Documentado para `legacy/client/` e `ENABLE_TCP_SERVER=true` em dev.
-
-Tipos: `login`, `message`, `welcome`, `chat`, `error`, `user_joined`, `user_left`, `ping`, `pong`.

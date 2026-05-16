@@ -1,13 +1,11 @@
-# Deploy no Fly.io (gratuito)
+# Deploy no Fly.io
 
-Stack: **Fly.io** (app Docker com React + API) + **Upstash** (Redis).  
-Custo operacional: **US$ 0** dentro do [free allowance](https://fly.io/docs/about/pricing/) do Fly.
+Stack: **cliente HTTP** (público) + **servidor TCP** (interno) + **Upstash Redis**.
 
 ## Pré-requisitos
 
 - Conta [fly.io](https://fly.io)
-- URL Redis do [Upstash](https://console.upstash.com) (`rediss://...`)
-- Repositório no GitHub (opcional; deploy via CLI na pasta do projeto)
+- URL Redis [Upstash](https://console.upstash.com) (`rediss://...`)
 - [Fly CLI](https://fly.io/docs/flyctl/install/):
 
 ```powershell
@@ -17,106 +15,63 @@ fly auth login
 
 ## Primeiro deploy
 
-Na raiz do repositório:
-
 ```powershell
 cd c:\Users\pedro\OneDrive\Documentos\Faculdade\distributed-chat
 fly launch --no-deploy --copy-config --name distributed-chat-SEUNOME --region gru
-```
-
-- Confirme `Dockerfile` e `fly.toml`.
-- **Não** crie Postgres/Redis no Fly (use Upstash).
-
-```powershell
 fly secrets set REDIS_URL="rediss://default:TOKEN@HOST.upstash.io:6379"
 fly deploy --no-cache
-```
-
-> Use `--no-cache` se o build do front falhar por cache antigo do Docker.
-
-## Duas instâncias (load balancer + demo de failover)
-
-```powershell
 fly scale count 2
-fly status
-```
-
-## URL pública
-
-```powershell
 fly open
 ```
 
-Exemplo: `https://distributed-chat-SEUNOME.fly.dev`
+URL: `https://distributed-chat-SEUNOME.fly.dev`
 
-Teste: `https://SEU_APP.fly.dev/health` → `{"status":"ok",...}`
+Teste: `https://SEU_APP.fly.dev/health` → `{"status":"ok","role":"client",...}`
 
-## Uso em aula (zero instalação)
+## Uso em aula
 
 1. Compartilhe a URL `https://....fly.dev`.
 2. Cada pessoa abre no navegador, faz login e conversa.
-3. **Não** é necessário `python -m client`, proxy local nem `npm run dev`.
+3. **Não** é necessário instalar Python nem Node nos PCs dos alunos.
 
-### Dois usuários
-
-| Contexto | Username |
-|----------|----------|
-| Aba 1 | `pedro` |
-| Aba anônima / outro navegador | `maria` |
-
-### Demo: professor derruba uma instância
+### Demo failover
 
 ```powershell
 fly machines list
 fly machine stop <ID>
 ```
 
-Usuários veem reconexão automática e banner *“Conexão restabelecida”*.
+Usuários veem reconexão e banner *“Conexão restabelecida”*.
 
-```powershell
-fly machine start <ID>
-```
+## Variáveis
 
-## Cold start (free tier)
-
-VMs podem parar quando ociosas. Antes da aula, abra a URL ou configure [UptimeRobot](https://uptimerobot.com) em `/health` (5 min).
-
-## Atualizar após mudanças no código
-
-```powershell
-git pull
-fly deploy
-```
-
-## Variáveis (Fly secrets / fly.toml)
-
-| Variável | Obrigatório | Descrição |
-|----------|-------------|-----------|
-| `REDIS_URL` | Sim (secret) | URL Upstash |
-| `ENABLE_TCP_SERVER` | Não | `false` no Fly (`fly.toml`) |
-| `PORT` | Automático | `8080` (HTTP interno) |
+| Variável | Onde | Descrição |
+|----------|------|-----------|
+| `REDIS_URL` | secret | Upstash |
+| `PORT` | 8080 | HTTP do **cliente** (público) |
+| `CHAT_SERVER_PORT` | 9000 | TCP do **servidor** (interno) |
+| `CHAT_SERVER_HOST` | 127.0.0.1 | Servidor no mesmo container |
 
 ## Desenvolvimento local
 
 ```powershell
-$env:PORT="8080"
-$env:REDIS_URL="rediss://..."
-$env:PYTHONPATH=(Get-Location).Path
-python -m server
+$env:PYTHONPATH = (Get-Location).Path
+# .env com REDIS_URL
+python -m stack
 ```
 
 ```bash
-cd frontend && npm install && npm run dev
+cd frontend && npm run dev
 ```
 
-`frontend/.env`: `VITE_API_URL=/api` (proxy Vite → `:8080`).
+`frontend/.env`: `VITE_API_URL=/api`
 
 ## Problemas comuns
 
 | Sintoma | Solução |
 |---------|---------|
-| Build: `sessionStorage` não encontrado | `fly deploy --no-cache`; confira `frontend/src/lib/sessionStorage.ts` |
-| Build: mesmo erro após criar arquivo | `.dockerignore` não pode ter `**/lib` genérico |
-| Login falha | `fly secrets list`; teste `REDIS_URL` no Upstash |
-| `username já está em uso` | Console Upstash: `DEL chat:user:NOME` |
-| App lento ao abrir | Cold start; aguarde ou UptimeRobot |
+| Login falha / 503 | Verifique `REDIS_URL`; servidor TCP precisa do Redis |
+| Mensagens somem / não aparecem | Com 2 VMs, faça redeploy após correção de afinidade; limpe cookies do site |
+| `username já está em uso` | `DEL chat:user:NOME` no console Upstash |
+| Cold start lento | Abra `/health` antes da aula ou UptimeRobot |
+| Build front falha | `fly deploy --no-cache` |

@@ -77,12 +77,20 @@ export default function App() {
     [session],
   );
 
+  const handleReconnected = useCallback(() => {
+    setConnectionNotice('Conexão restabelecida — você permanece no chat.');
+  }, []);
+
+  const handleDismissNotice = useCallback(() => {
+    setConnectionNotice('');
+  }, []);
+
   useChatEvents({
     enabled: session.status === 'authenticated',
     sessionId: session.status === 'authenticated' ? session.sessionId : '',
     onEvent: handleSseEvent,
     onCatchUp: handleCatchUp,
-    onReconnected: () => setConnectionNotice('Conexão restabelecida — você permanece no chat.'),
+    onReconnected: handleReconnected,
   });
 
   async function handleLogin(username: string) {
@@ -100,7 +108,7 @@ export default function App() {
         messages={messages}
         conversationId={GLOBAL_CONVERSATION_ID}
         connectionNotice={connectionNotice}
-        onDismissNotice={() => setConnectionNotice('')}
+        onDismissNotice={handleDismissNotice}
       />
     );
   }

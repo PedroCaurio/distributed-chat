@@ -27,7 +27,7 @@ export default function IdentityScreen({ onLogin }: IdentityScreenProps) {
       const message =
         loginError instanceof Error
           ? loginError.message
-          : 'Não foi possível conectar ao proxy. Verifique se ele está em execução.';
+          : 'Não foi possível conectar ao chat. Verifique se o servidor está online.';
       setError(message);
     } finally {
       setLoading(false);

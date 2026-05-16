@@ -18,6 +18,13 @@ export function useChatEvents({
   onReconnected,
 }: UseChatEventsOptions): void {
   const lastTsRef = useRef(0);
+  const onEventRef = useRef(onEvent);
+  const onCatchUpRef = useRef(onCatchUp);
+  const onReconnectedRef = useRef(onReconnected);
+
+  onEventRef.current = onEvent;
+  onCatchUpRef.current = onCatchUp;
+  onReconnectedRef.current = onReconnected;
 
   useEffect(() => {
     if (!enabled || !sessionId) {
@@ -27,11 +34,12 @@ export function useChatEvents({
     let source: EventSource | null = null;
     let disposed = false;
     let heartbeatTimer: number | undefined;
+    let reconnectTimer: number | undefined;
 
     const syncMissed = async () => {
       const missed = await fetchHistorySince(lastTsRef.current, sessionId);
       if (missed.length > 0) {
-        onCatchUp(
+        onCatchUpRef.current(
           missed.map((m) => ({
             type: 'chat',
             username: m.username,
@@ -51,7 +59,7 @@ export function useChatEvents({
       }
       const base = getApiBaseUrl();
       const url = `${base}/events?session=${encodeURIComponent(sessionId)}`;
-      source = new EventSource(url);
+      source = new EventSource(url, { withCredentials: true });
 
       source.onmessage = (event) => {
         try {
@@ -59,21 +67,22 @@ export function useChatEvents({
           if (typeof payload.ts === 'number') {
             lastTsRef.current = Math.max(lastTsRef.current, payload.ts);
           }
-          onEvent(payload);
+          onEventRef.current(payload);
         } catch {
           // frame inválido
         }
       };
 
-      source.onerror = async () => {
+      source.onerror = () => {
         source?.close();
         source = null;
         if (disposed) {
           return;
         }
-        await syncMissed();
-        onReconnected?.();
-        window.setTimeout(connect, 1500);
+        void syncMissed().then(() => {
+          onReconnectedRef.current?.();
+          reconnectTimer = window.setTimeout(connect, 1500);
+        });
       };
     };
 
@@ -89,6 +98,9 @@ export function useChatEvents({
       if (heartbeatTimer) {
         window.clearInterval(heartbeatTimer);
       }
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+      }
     };
-  }, [enabled, sessionId, onEvent, onCatchUp, onReconnected]);
+  }, [enabled, sessionId]);
 }

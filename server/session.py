@@ -84,6 +84,7 @@ class ClientSession(threading.Thread):
                         encode_line(
                             {
                                 "type": MessageType.WELCOME.value,
+                                "session_id": result.session_id,
                                 "client_id": result.client_id,
                                 "username": result.username,
                                 "history": result.history,
@@ -96,8 +97,18 @@ class ClientSession(threading.Thread):
                     out = self._core.send_message(self._session_id, str(msg.get("text", "")))
                     if isinstance(out, str):
                         self._send_error(out)
+                elif typ == MessageType.HISTORY_SINCE.value:
+                    since = float(msg.get("since", 0))
+                    items = self._backend.get_history_since(
+                        since,
+                        limit=self._settings.history_max,
+                    )
+                    self._send_raw(
+                        encode_line({"type": MessageType.HISTORY.value, "messages": items}),
+                    )
                 elif typ == MessageType.PING.value:
                     self._send_raw(encode_line({"type": MessageType.PONG.value, "ts": now_ts()}))
+                    self._core.refresh_session(self._session_id)
                 elif typ == MessageType.LOGIN.value:
                     self._send_error("já autenticado")
                 else:

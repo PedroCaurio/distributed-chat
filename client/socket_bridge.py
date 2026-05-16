@@ -17,10 +17,9 @@ logger = logging.getLogger(__name__)
 
 class SocketBridge:
     """
-    Ponte para o servidor de chat.
+    Ponte TCP para o servidor de chat.
 
-    - ``send_*`` é chamado pelas rotas HTTP (thread principal / pool FastAPI).
-    - ``_recv_loop`` roda em thread própria e apenas faz leitura + despacho ao demux.
+    ``send_*`` é chamado pelas rotas HTTP; ``_recv_loop`` roda em thread própria.
     """
 
     __slots__ = (
@@ -31,21 +30,35 @@ class SocketBridge:
         "_demux",
         "_reader_thread",
         "_closed",
+        "_username",
     )
 
-    def __init__(self, host: str, port: int, demux: InboundDemux) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        demux: InboundDemux,
+        *,
+        username: str,
+    ) -> None:
         self._host = host
         self._port = port
         self._conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._send_lock = threading.Lock()
         self._demux = demux
-        self._reader_thread = threading.Thread(target=self._recv_loop, name="socket-recv", daemon=True)
+        self._username = username
+        self._reader_thread = threading.Thread(
+            target=self._recv_loop,
+            name=f"socket-recv-{username}",
+            daemon=True,
+        )
         self._closed = threading.Event()
 
     def connect(self) -> None:
         self._conn.connect((self._host, self._port))
         self._conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self._reader_thread.start()
+        logger.info("TCP conectado a %s:%s (%s)", self._host, self._port, self._username)
 
     def is_closed(self) -> bool:
         return self._closed.is_set()
@@ -78,19 +91,22 @@ class SocketBridge:
             encode_line({"type": MessageType.MESSAGE.value, "text": text}),
         )
 
+    def send_history_since(self, since: float) -> None:
+        self._send_raw(
+            encode_line({"type": MessageType.HISTORY_SINCE.value, "since": since}),
+        )
+
     def _recv_loop(self) -> None:
         try:
             fp = self._conn.makefile("rb")
             try:
                 for raw in fp:
-                    if self._closed.is_set():
-                        break
-                    if not raw:
+                    if self._closed.is_set() or not raw:
                         break
                     try:
                         msg = decode_line(raw)
                     except (UnicodeDecodeError, ValueError, TypeError) as exc:
-                        logger.info("Frame inválido (proxy): %s", exc)
+                        logger.info("Frame inválido (%s): %s", self._username, exc)
                         continue
                     self._demux.push(msg)
             finally:
@@ -99,6 +115,6 @@ class SocketBridge:
                 except OSError:
                     pass
         except OSError as exc:
-            logger.info("Socket encerrado: %s", exc)
+            logger.info("Socket encerrado (%s): %s", self._username, exc)
         finally:
             self._closed.set()

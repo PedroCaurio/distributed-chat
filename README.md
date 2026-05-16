@@ -1,12 +1,35 @@
 # distributed-chat
 
-Chat multiusuário **100% web** — **Fly.io** (2 instâncias) + **Upstash** (Redis), **US$ 0** no free tier.
+Chat multiusuário com **arquitetura cliente-servidor**, **sockets TCP nativos**, **threads** e interface **web** (zero instalação na demonstração).
+
+## Arquitetura (enunciado)
+
+```text
+Navegador ──HTTP/SSE──► client/ (servidor HTTP embutido + thread recv TCP)
+                              │
+                              ▼ sockets
+                         server/ (1 thread por conexão TCP)
+                              │
+                              ▼
+                         Redis (histórico, sessões, pub/sub)
+                              │
+                    2 instâncias Fly (failover)
+```
+
+| Requisito | Implementação |
+|-----------|----------------|
+| Múltiplos usuários | Sala global; mensagens via servidor |
+| Thread por conexão no servidor | `server/session.py` → `ClientSession(threading.Thread)` |
+| Thread de recv no cliente | `client/socket_bridge.py` → `_recv_loop` por usuário |
+| Navegador + HTTP embutido no cliente | `client/app.py` (FastAPI) + React em `frontend/` |
+| Tolerância a falhas | `fly scale count 2` + Redis + reconexão SSE |
+| Sockets (sem WebSocket) | NDJSON sobre TCP (`common/protocol.py`) |
 
 ## Demonstração em aula
 
 1. Abra `https://SEU_APP.fly.dev` (após deploy).
 2. Login com username → converse na sala global.
-3. **Nada para instalar** no PC dos alunos.
+3. **Nada para instalar** nos PCs dos alunos.
 
 ## Deploy
 
@@ -25,13 +48,14 @@ fly open
 
 ```text
 distributed-chat/
-├── frontend/       # React
-├── server/         # FastAPI + SSE + Redis
-├── common/         # Protocolo TCP (legado)
-├── legacy/client/  # Proxy local (opcional, relatório)
+├── client/          # Cliente: HTTP para o browser + TCP para o servidor
+├── server/          # Servidor de chat TCP + Redis
+├── stack/           # Entrypoint produção (ambos os processos)
+├── frontend/        # React (build → servido pelo client)
+├── common/          # Protocolo NDJSON/TCP
+├── docs/
 ├── Dockerfile
-├── fly.toml
-└── docs/
+└── fly.toml
 ```
 
 ## Desenvolvimento local
@@ -40,10 +64,14 @@ distributed-chat/
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-# .env: REDIS_URL + PORT=8080
+copy .env.example .env
+# Edite REDIS_URL no .env
+
 $env:PYTHONPATH = (Get-Location).Path
-python -m server
+python -m stack
 ```
+
+Outro terminal:
 
 ```bash
 cd frontend && npm install && npm run dev
@@ -63,15 +91,9 @@ python -m pytest -q
 | Arquivo | Conteúdo |
 | --- | --- |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Deploy Fly.io |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitetura |
-| [docs/PAYLOADS.md](docs/PAYLOADS.md) | API HTTP |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitetura detalhada |
+| [docs/PAYLOADS.md](docs/PAYLOADS.md) | API HTTP do cliente + frames TCP |
 
-## Requisitos acadêmicos
+## Entrega AVA
 
-| Requisito | Atendimento |
-| --- | --- |
-| Navegador, sem instalar | URL pública Fly |
-| Servidor online | Fly.io |
-| Threads | TCP opcional + pub/sub + SSE |
-| Tolerância a falhas | 2 VMs + Redis + reconexão SSE |
-| Histórico | Redis |
+Inclua no `.zip`: código-fonte, `requirements.txt`, este `README.md` e o **relatório em PDF**.

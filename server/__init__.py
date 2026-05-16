@@ -1,1 +1,1 @@
-"""Servidor de chat TCP com threads, Redis e pub/sub para fan-out entre instâncias."""
+"""Servidor de chat TCP: thread por conexão, Redis e pub/sub entre réplicas."""
