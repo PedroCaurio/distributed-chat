@@ -84,7 +84,15 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
 
     @app.get("/events")
     def events() -> StreamingResponse:
-        return StreamingResponse(_sse_generator(), media_type="text/event-stream")
+        return StreamingResponse(
+            _sse_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     return app
 

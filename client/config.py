@@ -52,7 +52,14 @@ def load_settings() -> ProxySettings:
     http_host = os.getenv("PROXY_HTTP_HOST", "127.0.0.1").strip()
     http_port = int(os.getenv("PROXY_HTTP_PORT", "5000"))
     cors_raw = os.getenv("PROXY_CORS_ORIGINS", "").strip()
-    cors = _parse_cors(cors_raw) if cors_raw else ()
+    if cors_raw:
+        cors = _parse_cors(cors_raw)
+    else:
+        # Origens padrão do Vite em desenvolvimento local
+        cors = (
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        )
     return ProxySettings(
         server_host=server_host,
         server_port=server_port,

@@ -1,0 +1,8 @@
+# Blueprint Render — estado compartilhado (Redis).
+# O servidor de chat TCP NÃO pode ser exposto publicamente só com Web Service no Render.
+# Use Fly.io para as 2 instâncias TCP (ver docs/DEPLOY_PRODUCTION.md).
+
+databases:
+  - name: distributed-chat-redis
+    plan: free
+    ipAllowList: []

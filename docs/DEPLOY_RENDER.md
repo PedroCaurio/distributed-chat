@@ -1,5 +1,7 @@
 # Deploy no Render + balanceamento (Load Balancer)
 
+> **Guia passo a passo completo (Fly + Render + teste com 2 usuários):** [DEPLOY_PRODUCTION.md](./DEPLOY_PRODUCTION.md)
+
 Este documento descreve como encaixar o **MVP servidor+proxy** na infraestrutura **Render**, com foco no que é (e o que **não** é) suportado nativamente pela plataforma.
 
 ## 1) Redis (estado compartilhado)

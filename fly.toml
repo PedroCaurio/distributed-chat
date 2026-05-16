@@ -1,0 +1,29 @@
+# Deploy: fly deploy && fly scale count 2
+# Docs: docs/DEPLOY_PRODUCTION.md
+
+app = 'distributed-chat'
+primary_region = 'gru'
+
+[build]
+  dockerfile = 'Dockerfile.server'
+
+[env]
+  CHAT_HOST = '0.0.0.0'
+  CHAT_PORT = '9000'
+  HISTORY_MAX = '500'
+  PUBSUB_CHANNEL = 'chat:broadcast'
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 9000
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 2
+
+  [[services.ports]]
+    port = 9000
+
+[[vm]]
+  memory = '256mb'
+  cpu_kind = 'shared'
+  cpus = 1

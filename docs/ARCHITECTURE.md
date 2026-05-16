@@ -1,28 +1,24 @@
-# Arquitetura do MVP (Servidor + Proxy)
+# Arquitetura do sistema
 
-Este repositório separa três papéis conceituais:
-
-1. **Servidor de chat (TCP + threads + Redis)**: aceita conexões TCP, mantém uma thread por cliente e usa Redis para persistir histórico e replicar eventos entre instâncias (pub/sub).
-2. **Proxy local (TCP + thread de recepção + HTTP)**: roda na máquina do usuário final, mantém **uma** conexão TCP com o servidor (socket nativo) e expõe uma API HTTP para o front-end (FastAPI + SSE).
-3. **Front-end (React)**: desenvolvido separadamente; integra via HTTP com o proxy (`localhost` na porta configurada).
+O projeto segue três camadas, conforme o enunciado acadêmico:
 
 ```mermaid
 flowchart LR
   subgraph Browser
-    FE[Front-end React]
+    FE[frontend/ React Vite]
   end
-  subgraph UserMachine[Máquina do usuário]
-    P[Proxy FastAPI :5000]
+  subgraph UserPC[Máquina do usuário]
+    P[client/ Proxy FastAPI :5000]
     T[Thread recv TCP]
     P <--> T
   end
-  subgraph Internet[Internet]
+  subgraph Cloud[Internet]
     LB[Balanceador / DNS]
-    S1[Servidor instância A]
-    S2[Servidor instância B]
+    S1[server/ instância A]
+    S2[server/ instância B]
     R[(Redis)]
   end
-  FE -->|HTTP local| P
+  FE -->|HTTP POST + SSE| P
   T -->|TCP NDJSON| LB
   LB --> S1
   LB --> S2
@@ -31,19 +27,44 @@ flowchart LR
   S1 <-. pub/sub .-> S2
 ```
 
-## Fluxo de dados (feliz caminho)
+## Pastas e responsabilidades
 
-1. O front chama `POST /login` no proxy com `username`.
-2. O proxy envia um frame `login` ao servidor via TCP.
-3. O servidor valida unicidade (SET `chat:online`), devolve `welcome` com `history` e publica `user_joined` no canal Redis.
-4. Todas as instâncias recebem o evento via pub/sub e fazem broadcast para **seus** clientes TCP conectados localmente.
-5. O front chama `POST /messages` com o texto; o proxy envia `message` ao servidor.
-6. O servidor persiste em `chat:history` (lista Redis) e publica `chat` no pub/sub; as instâncias replicam para os clientes.
+| Pasta | Papel |
+| --- | --- |
+| `frontend/` | UI React; login, envio de mensagens, SSE para tempo real |
+| `client/` | Proxy: thread de recepção TCP + API HTTP para o navegador |
+| `server/` | Servidor de chat: uma thread por conexão TCP, Redis, pub/sub |
+| `common/` | Serialização NDJSON e tipos de mensagem |
 
-## Tolerância a falhas (visão acadêmica)
+> O nome `client/` no Python é o **proxy intermediário** (requisito “cliente com thread de recv”). O front-end React fica em `frontend/` para evitar conflito de nomes.
 
-- **Estado durável**: histórico e presença “global” ficam no Redis; uma nova instância pode retomar leituras consistentes do histórico.
-- **Fan-out entre instâncias**: mensagens de chat e eventos de presença são propagados via Redis pub/sub, para que usuários conectados em instâncias diferentes ainda recebam os mesmos eventos.
-- **Queda de instância**: conexões TCP ativas morrem com a instância; clientes (proxy) precisam reconectar. O tráfego novo deve ir para instâncias saudáveis (balanceamento + health checks na infraestrutura).
+## Fluxo de login
 
-> Observação: o balanceamento de **TCP** na borda pública depende do provedor expor porta TCP com health checks adequados. No Render, ver `docs/DEPLOY_RENDER.md`.
+1. `IdentityScreen` → `POST /api/login` (proxy) → frame TCP `login`.
+2. Servidor valida username, grava presença em Redis, responde `welcome` com `history`.
+3. Proxy devolve JSON ao React; `App` monta a lista inicial de mensagens.
+4. `useChatEvents` abre `EventSource` em `/api/events` para eventos posteriores.
+
+## Fluxo de mensagem
+
+1. `ChatScreen` → `POST /api/messages` com `{ "text": "..." }`.
+2. Proxy envia frame TCP `message`.
+3. Servidor persiste em `chat:history` e publica `chat` no Redis pub/sub.
+4. Todas as instâncias repassam o evento aos clientes TCP locais.
+5. Proxy enfileira no SSE; React acrescenta a bolha na sala global.
+
+## Tolerância a falhas
+
+- Estado durável no Redis (histórico e presença).
+- Pub/sub replica eventos entre instâncias do `server/`.
+- Reconexão TCP do proxy após queda de instância: melhoria futura; o usuário pode reiniciar o proxy.
+
+## Desenvolvimento local
+
+O Vite (`frontend/vite.config.ts`) faz proxy de `/api` → `http://127.0.0.1:5000`, evitando CORS em dev. O proxy também aceita origens `localhost:5173` por padrão (`client/config.py`).
+
+## Produção (visão)
+
+- `server/` em VM/Render/Fly com TCP público.
+- `frontend/` na Vercel com `VITE_PROXY_URL` apontando para o proxy na máquina do usuário (ou túnel).
+- Redis gerenciado (Upstash, Render Key Value).

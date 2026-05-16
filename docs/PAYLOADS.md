@@ -91,6 +91,8 @@ Keep-alive / diagnóstico. Pode ser enviado **antes** do `login`.
 
 ## HTTP do Proxy (contrato para o front)
 
+O front-end (`frontend/`) consome estas rotas via `chatService.ts`. Em desenvolvimento, o prefixo base é `/api` (proxy do Vite); em produção, use `VITE_PROXY_URL`.
+
 ### `GET /health`
 
 ```json
