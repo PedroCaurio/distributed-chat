@@ -1,4 +1,4 @@
-"""Integração com Redis: histórico, presença e pub/sub."""
+"""Integração com Redis: histórico, sessões web e pub/sub."""
 
 from __future__ import annotations
 
@@ -13,7 +13,9 @@ import redis
 logger = logging.getLogger(__name__)
 
 HISTORY_KEY: Final[str] = "chat:history"
-PRESENCE_KEY: Final[str] = "chat:online"
+SESSION_PREFIX: Final[str] = "chat:session:"
+USER_PREFIX: Final[str] = "chat:user:"
+SESSION_TTL_SECONDS: Final[int] = 300
 
 
 class RedisChatBackend:
@@ -28,13 +30,59 @@ class RedisChatBackend:
     def ping(self) -> None:
         self._client.ping()
 
-    def try_register_presence(self, username: str) -> bool:
-        """Retorna False se o usuário já estiver marcado como online."""
-        added = int(self._client.sadd(PRESENCE_KEY, username))
-        return added == 1
+    def save_session(self, session_id: str, username: str) -> None:
+        self._client.setex(f"{SESSION_PREFIX}{session_id}", SESSION_TTL_SECONDS, username)
 
-    def release_presence(self, username: str) -> None:
-        self._client.srem(PRESENCE_KEY, username)
+    def get_session_username(self, session_id: str) -> str | None:
+        value = self._client.get(f"{SESSION_PREFIX}{session_id}")
+        return value if value else None
+
+    def refresh_session(self, session_id: str) -> bool:
+        key = f"{SESSION_PREFIX}{session_id}"
+        if not self._client.exists(key):
+            return False
+        self._client.expire(key, SESSION_TTL_SECONDS)
+        username = self._client.get(key)
+        if username:
+            self._client.expire(f"{USER_PREFIX}{username}", SESSION_TTL_SECONDS)
+        return True
+
+    def pop_session(self, session_id: str) -> str | None:
+        key = f"{SESSION_PREFIX}{session_id}"
+        username = self._client.get(key)
+        if not username:
+            return None
+        pipe = self._client.pipeline()
+        pipe.delete(key)
+        pipe.delete(f"{USER_PREFIX}{username}")
+        pipe.execute()
+        return username
+
+    def claim_username(self, username: str, session_id: str) -> bool:
+        """
+        Reserva username para a sessão.
+
+        Permite reconexão da mesma sessão ou tomada de posse se a sessão anterior expirou.
+        """
+        user_key = f"{USER_PREFIX}{username}"
+        existing = self._client.get(user_key)
+        if existing is None:
+            pipe = self._client.pipeline()
+            pipe.setex(user_key, SESSION_TTL_SECONDS, session_id)
+            pipe.setex(f"{SESSION_PREFIX}{session_id}", SESSION_TTL_SECONDS, username)
+            pipe.execute()
+            return True
+        if existing == session_id:
+            self.refresh_session(session_id)
+            return True
+        if not self._client.exists(f"{SESSION_PREFIX}{existing}"):
+            pipe = self._client.pipeline()
+            pipe.delete(f"{SESSION_PREFIX}{existing}")
+            pipe.setex(user_key, SESSION_TTL_SECONDS, session_id)
+            pipe.setex(f"{SESSION_PREFIX}{session_id}", SESSION_TTL_SECONDS, username)
+            pipe.execute()
+            return True
+        return False
 
     def append_history(self, entry: dict[str, Any]) -> None:
         payload = json.dumps(entry, ensure_ascii=False, separators=(",", ":"))
@@ -53,6 +101,11 @@ class RedisChatBackend:
                 logger.warning("Item de histórico inválido no Redis; ignorando.")
         return out
 
+    def get_history_since(self, since_ts: float, *, limit: int = 200) -> list[dict[str, Any]]:
+        """Mensagens de chat com ``ts`` estritamente maior que ``since_ts``."""
+        all_items = self.get_history(limit=limit)
+        return [m for m in all_items if float(m.get("ts", 0)) > since_ts]
+
     def publish(self, channel: str, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
         self._client.publish(channel, body)
@@ -65,11 +118,7 @@ def start_pubsub_listener(
     *,
     stop_event: threading.Event,
 ) -> threading.Thread:
-    """
-    Thread que escuta pub/sub e chama ``on_message`` com dict já parseado.
-
-    Usa conexão dedicada (requisito do cliente Redis).
-    """
+    """Thread dedicada que escuta pub/sub Redis (replicação entre instâncias)."""
 
     def _run() -> None:
         client = redis.Redis.from_url(url, decode_responses=True)

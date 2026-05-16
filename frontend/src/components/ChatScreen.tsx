@@ -6,8 +6,11 @@ import { GLOBAL_CONVERSATION_ID } from '../utils/chatMappers';
 
 type ChatScreenProps = {
   currentUser: UserProfile;
+  sessionId: string;
   messages: ChatMessage[];
   conversationId: string;
+  connectionNotice?: string;
+  onDismissNotice?: () => void;
 };
 
 function MessageBubble({ message }: { message: ChatMessage }) {
@@ -31,7 +34,14 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-export default function ChatScreen({ currentUser, messages, conversationId }: ChatScreenProps) {
+export default function ChatScreen({
+  currentUser,
+  sessionId,
+  messages,
+  conversationId,
+  connectionNotice,
+  onDismissNotice,
+}: ChatScreenProps) {
   const [messageDraft, setMessageDraft] = useState('');
   const [notice, setNotice] = useState('');
   const [query, setQuery] = useState('');
@@ -70,7 +80,7 @@ export default function ChatScreen({ currentUser, messages, conversationId }: Ch
     setNotice('');
     setSending(true);
     try {
-      await sendMessage(content);
+      await sendMessage(content, sessionId);
       setMessageDraft('');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao enviar mensagem.';
@@ -133,6 +143,17 @@ export default function ChatScreen({ currentUser, messages, conversationId }: Ch
               filteredMessages.map((message) => <MessageBubble key={message.id} message={message} />)
             )}
           </div>
+
+          {connectionNotice ? (
+            <div className="connection-notice" role="status">
+              <span>{connectionNotice}</span>
+              {onDismissNotice ? (
+                <button type="button" className="ghost-action" onClick={onDismissNotice}>
+                  OK
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           {notice ? (
             <div className="backend-notice" role="alert">

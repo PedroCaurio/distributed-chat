@@ -34,4 +34,5 @@ export type AppSession =
   | {
       status: 'authenticated';
       user: UserProfile;
+      sessionId: string;
     };

@@ -72,7 +72,7 @@ export default function IdentityScreen({ onLogin }: IdentityScreenProps) {
             </button>
           </form>
           <p className="identity-hint">
-            O proxy local deve estar rodando (porta 5000). Inicie o servidor de chat antes de entrar.
+            Acesse pelo link público do deploy (Render). Nenhuma instalação local é necessária.
           </p>
         </section>
       </div>

@@ -1,98 +1,98 @@
-# Deploy no Render + balanceamento (Load Balancer)
+# Deploy no Render (100% web, 2 instâncias)
 
-> **Guia passo a passo completo (Fly + Render + teste com 2 usuários):** [DEPLOY_PRODUCTION.md](./DEPLOY_PRODUCTION.md)
+Guia para demonstração em aula **sem instalar nada** no PC — apenas abrir a URL pública.
 
-Este documento descreve como encaixar o **MVP servidor+proxy** na infraestrutura **Render**, com foco no que é (e o que **não** é) suportado nativamente pela plataforma.
+## Pré-requisitos
 
-## 1) Redis (estado compartilhado)
+- Repositório no GitHub
+- Conta [Render](https://render.com)
+- URL Redis do **Upstash** (`rediss://...`)
 
-O servidor usa Redis para:
+## Passo 1 — Blueprint no Render
 
-- **Histórico**: lista `chat:history`
-- **Presença global** (MVP): set `chat:online`
-- **Replicação entre instâncias**: canal pub/sub configurável (`PUBSUB_CHANNEL`, default `chat:broadcast`)
+1. Acesse [dashboard.render.com](https://dashboard.render.com).
+2. **New +** → **Blueprint**.
+3. Conecte o repositório `distributed-chat`.
+4. O Render lê `render.yaml` e cria o Web Service `distributed-chat` com **`numInstances: 2`** (load balancer HTTP automático).
 
-### Opção recomendada no ecossistema Render
+## Passo 2 — Variável secreta
 
-Crie um **Render Key Value** (Redis®-compatível) e use a URL fornecida no painel como `REDIS_URL`.
+No serviço criado → **Environment**:
 
-> A URL costuma funcionar com `redis://` ou `rediss://` (TLS). Use exatamente o que o painel indicar.
+| Chave | Valor |
+| --- | --- |
+| `REDIS_URL` | Cole a URL completa do Upstash |
+| `ENABLE_TCP_SERVER` | `false` (já no blueprint) |
 
-### Variáveis de ambiente (servidor)
+Salve. O Render fará um novo deploy.
 
-Veja também `.env.example`. Mínimo:
+## Passo 3 — Aguardar build
 
-- `REDIS_URL` (**obrigatório**)
-- `CHAT_HOST` (tipicamente `0.0.0.0` dentro do container)
-- `CHAT_PORT` (porta interna do processo; veja seção de TCP abaixo)
+O `Dockerfile` na raiz:
 
-## 2) O serviço de chat (TCP) e a limitação importante da borda pública Render
+1. Compila o front (`npm run build`)
+2. Copia `frontend/dist` para a imagem Python
+3. Sobe FastAPI na porta `PORT` (Render injeta, ex. `10000`)
 
-Na prática, o produto **Web Service** do Render expõe **HTTP(S)** na internet para o hostname `*.onrender.com`.
+Logs devem mostrar: `HTTP escutando na porta 10000`.
 
-Para este trabalho, o **proxy** precisa abrir um **socket TCP** “cru” até o servidor de chat. **Não assuma** que um listener TCP arbitrário ficará acessível publicamente como no `localhost` — isso depende do **tipo de serviço** e da configuração de rede.
+## Passo 4 — URL pública
 
-Em alto nível:
+Após deploy:
 
-- **Private Service** no Render aceita TCP na rede privada, mas **não** recebe tráfego direto da internet (útil se *toda* a carga vier de outro serviço Render no mesmo projeto/região).
-- **Web Service** é o padrão para HTTP público, não para expor um protocolo TCP customizado de ponta a ponta.
+```text
+https://distributed-chat.onrender.com
+```
 
-### Como isso afeta o MVP
+(ou o nome que você definiu)
 
-1. **Se você hospedar o servidor TCP como Private Service** no Render:
-   - o **proxy local** (máquina do usuário) **não conseguirá conectar** a menos que exista algum mecanismo adicional (VPN, túnel, bastion, etc.).
-   - isso continua válido para demonstrar **alta disponibilidade interna** (2 instâncias + Redis + load balancer interno, quando aplicável).
+Abra no navegador da sala de aula — login e chat funcionam na mesma URL.
 
-2. **Se você precisa cumprir o requisito de “servidor online acessível fora do localhost” com TCP nativo**:
-   - normalmente será necessário um provedor que permita **porta TCP pública** (VM, Fly.io, Railway com TCP, etc.), **ou**
-   - manter Redis no Render e rodar o processo de chat em outro host — a arquitetura do MVP já desacopla estado (`REDIS_URL`) do processo Python.
+## Passo 5 — Load balancer (2 instâncias)
 
-> Recomendação honesta para a banca: descreva no relatório **onde** o TCP fica exposto publicamente e **como** a instância se recupera via Redis quando há failover.
+1. Serviço → **Scaling** → confirme **2 instances**.
+2. Cada instância aparece em **Events** / **Metrics**.
 
-## 3) Load Balancer / múltiplas instâncias (documentação oficial)
+Documentação: https://render.com/docs/scaling
 
-O Render documenta escalonamento e distribuição de tráfego em **múltiplas instâncias** de um mesmo serviço (com health checks). Leia:
+## Passo 6 — Demonstração de failover
 
-- [Scaling Render Services](https://render.com/docs/scaling)
+1. Dois alunos (ou duas abas anônimas) entram com usernames diferentes.
+2. No painel Render → **Manual Deploy** ou **Restart** em **uma** instância (ou reduza para 1 e volte para 2).
+3. Usuários podem ver breve pausa; em seguida banner **“Conexão restabelecida”** e mensagens continuam (histórico no Redis + SSE reconecta).
 
-Pontos úteis para o seu relatório:
+## Health check
 
-- **Health checks** ajudam a retirar instâncias ruins do conjunto saudável.
-- Em serviços com múltiplas instâncias, o provedor **pode balancear** novas conexões entre réplicas (estrategia e nuances dependem do tipo de serviço e plano).
+Render usa `healthCheckPath: /health` do `render.yaml`.
 
-### TCP atrás de múltiplas instâncias
+Teste manual: `https://SEU_APP.onrender.com/health`
 
-Para protocolos **com estado por conexão** (TCP long-lived), balanceamento ingênuo pode:
+## Desenvolvimento local
 
-- espalhar usuários em instâncias diferentes (ok para este MVP, graças ao Redis pub/sub),
-- **mas** exige que reconexões tratem autenticação novamente (o proxy precisa suportar reconexão; hoje o MVP assume sessão de longa duração).
+```powershell
+$env:PORT="10000"
+$env:REDIS_URL="rediss://..."
+$env:PYTHONPATH=(Get-Location).Path
+python -m server
+```
 
-## 4) Build & run (Docker)
+Front em dev:
 
-Na raiz do repositório existe `Dockerfile.server` para empacotar apenas `common/` + `server/`.
+```bash
+cd frontend
+npm run dev
+# VITE_API_URL=/api no .env → proxy para :10000
+```
 
-Exemplo de variáveis no painel Render:
+## Plano Render
 
-- `REDIS_URL` definido como *secret*
-- `CHAT_HOST=0.0.0.0`
-- `CHAT_PORT` consistente com a porta que o serviço espera receber **na rede onde ele estiver exposto**
+O blueprint usa `plan: starter` (necessário para múltiplas instâncias estáveis). Ajuste no `render.yaml` se usar free tier (pode limitar 2 instâncias).
 
-Comando:
+## Relatório técnico
 
-- `python -m server`
+Explique:
 
-> Lembre de definir `PYTHONPATH=/app` (já presente no Dockerfile proposto) ou equivalente.
-
-## 5) Checklist operacional (MVP)
-
-- [ ] Redis acessível a partir de todas as instâncias (`REDIS_URL`).
-- [ ] Canal pub/sub igual em todas as instâncias (`PUBSUB_CHANNEL`).
-- [ ] Duas instâncias publicando/consumindo o mesmo Redis.
-- [ ] Estratégia clara de **exposição TCP** (interna vs pública) documentada no relatório.
-- [ ] Timeouts/reconexão do proxy documentados como “trabalho futuro” se ainda não existirem.
-
-## 6) Manutenção: presença presa no Redis
-
-Se um processo morrer sem rodar o cleanup da sessão, `chat:online` pode reter um username.
-
-Durante desenvolvimento, você pode limpar com `DEL chat:online` no Redis (cuidado em produção). O relatório pode mencionar TTL/ heartbeats como melhoria.
+- Estado centralizado no Upstash
+- Duas réplicas stateless no Render
+- LB HTTP do Render
+- Sessões em Redis + reconexão SSE = tolerância a falha imperceptível ao usuário

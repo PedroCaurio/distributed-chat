@@ -78,23 +78,21 @@ Estamos desenvolvendo um trabalho acadêmico de Sistemas Distribuídos que consi
 
 ---
 
-## Arquitetura do Sistema
+## Arquitetura do Sistema (100% web — demonstração em aula)
 
-O sistema é dividido em três camadas para contornar a limitação de navegadores não suportarem Raw Sockets:
+### 1. Servidor unificado (Render — 2 instâncias + LB HTTP)
+- **Linguagem:** Python 3 + FastAPI
+- **Infraestrutura:** Duas instâncias Web Service no Render (`render.yaml`), load balancer HTTP nativo.
+- **Estado:** Redis (Upstash) — histórico, sessões web, pub/sub entre instâncias.
+- **Failover:** Ao cair uma instância, o navegador reconecta SSE, recupera histórico via `/history?since=` e mantém `session_id` no Redis.
 
-### 1. Servidor de Chat (Backend - Render)
-- **Linguagem:** Python 3
-- **Infraestrutura:** Duas instâncias rodando no Render (Primary/Secondary ou Active/Active via Render LoadBalancer). Para mantê-las acordadas, será configurado um UptimeRobot.
-- **Estado (State Management):** Como instâncias podem cair, o estado (usuários logados, histórico de mensagens) deve ser persistido e sincronizado utilizando **Redis**. Se uma instância cair, o LoadBalancer redireciona o socket para a segunda, que recupera o estado do Redis.
+### 2. Frontend (React — mesmo deploy)
+- Build Vite embutido no Docker; servido na mesma URL pública.
+- **Zero instalação** para alunos/professor: apenas abrir o link.
 
-### 2. Cliente Proxy (Local/Intermediário - Python)
-- **Responsabilidade:** Satisfazer o requisito acadêmico de "cliente com thread de recepção". 
-- **Funcionamento:** Um script Python rodando na máquina do usuário final. Ele estabelece o Raw Socket com o Servidor no Render e cria a `thread` de escuta.
-- **Servidor HTTP Embutido:** Para integrar com o navegador, este cliente local também levanta um servidor FastAPI/Flask (ex: na porta 5000) que expõe endpoints REST/SSE (Server-Sent Events) para o React.
-
-### 3. Frontend Web (React - Vercel)
-- **Responsabilidade:** Interface amigável e acessível pelo navegador web.
-- **Comunicação:** Faz requisições HTTP (fetch/Axios) para o **Cliente Proxy (localhost:5000)**, que por sua vez repassa via Socket para o Servidor no Render.
+### 3. Cliente proxy (`client/` — opcional)
+- Mantido para desenvolvimento e referência (thread `recv` + TCP).
+- **Não usado** na apresentação 100% web.
 
 ---
 
@@ -130,7 +128,7 @@ Ao gerar, modificar ou refatorar códigos, siga ESTRITAMENTE as seguintes diretr
 
 ---
 ## Requisitos de Avaliação (Para Check-list)
-- [ ] Acesso via navegador sem instalação pesada para o usuário (basta rodar o proxy e abrir o link Vercel).
+- [ ] Acesso via navegador sem instalação (URL pública Render).
 - [ ] Múltiplos usuários simultâneos.
 - [ ] Identificação de usuários (Username).
 - [ ] Histórico de mensagens recuperável.

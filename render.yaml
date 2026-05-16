@@ -1,8 +1,20 @@
-# Blueprint Render — estado compartilhado (Redis).
-# O servidor de chat TCP NÃO pode ser exposto publicamente só com Web Service no Render.
-# Use Fly.io para as 2 instâncias TCP (ver docs/DEPLOY_PRODUCTION.md).
+# Blueprint Render — chat 100% web, 2 instâncias com load balancer HTTP.
+# Conecte o repositório GitHub e defina REDIS_URL no painel (Upstash).
 
-databases:
-  - name: distributed-chat-redis
-    plan: free
-    ipAllowList: []
+services:
+  - type: web
+    name: distributed-chat
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    numInstances: 2
+    healthCheckPath: /health
+    envVars:
+      - key: REDIS_URL
+        sync: false
+      - key: ENABLE_TCP_SERVER
+        value: "false"
+      - key: HISTORY_MAX
+        value: "500"
+      - key: PUBSUB_CHANNEL
+        value: "chat:broadcast"

@@ -1,40 +1,22 @@
-"""Sessão TCP: uma thread por conexão, loop de leitura NDJSON."""
+"""Sessão TCP: uma thread por conexão (compatível com clientes socket nativos)."""
 
 from __future__ import annotations
 
 import logging
 import socket
 import threading
-import time
-import uuid
 from typing import TYPE_CHECKING, Any
 
 from common.protocol import MessageType, decode_line, encode_line
+from server.chat_core import now_ts
 
 if TYPE_CHECKING:
+    from server.chat_core import ChatCore
     from server.config import ServerSettings
     from server.redis_service import RedisChatBackend
     from server.registry import ClientRegistry
 
 logger = logging.getLogger(__name__)
-
-
-def _now_ts() -> float:
-    return time.time()
-
-
-def _validate_username(raw: str) -> str | None:
-    username = raw.strip()
-    if not username or len(username) > 32:
-        return None
-    return username
-
-
-def _validate_text(raw: str) -> str | None:
-    text = raw.strip()
-    if not text or len(text) > 4000:
-        return None
-    return text
 
 
 class ClientSession(threading.Thread):
@@ -45,19 +27,20 @@ class ClientSession(threading.Thread):
         conn: socket.socket,
         addr: tuple[str, int],
         *,
+        core: ChatCore,
         backend: RedisChatBackend,
         registry: ClientRegistry,
         settings: ServerSettings,
     ) -> None:
-        super().__init__(name=f"client-{addr}", daemon=True)
+        super().__init__(name=f"tcp-{addr}", daemon=True)
         self._conn = conn
         self._addr = addr
+        self._core = core
         self._backend = backend
         self._registry = registry
         self._settings = settings
         self._send_lock = threading.Lock()
-        self._username: str | None = None
-        self._client_id = uuid.uuid4().hex
+        self._session_id: str | None = None
         self._closed = threading.Event()
         self._sender: Any = None
 
@@ -66,118 +49,61 @@ class ClientSession(threading.Thread):
             self._conn.sendall(frame)
 
     def _send_error(self, message: str) -> None:
-        self._send_raw(
-            encode_line({"type": MessageType.ERROR.value, "message": message})
-        )
+        self._send_raw(encode_line({"type": MessageType.ERROR.value, "message": message}))
 
-    def _handle_login(self, msg: dict[str, Any]) -> None:
-        if self._username is not None:
-            self._send_error("já autenticado")
-            return
-        username = _validate_username(str(msg.get("username", "")))
-        if not username:
-            self._send_error("username inválido (1–32 caracteres)")
-            return
-        if not self._backend.try_register_presence(username):
-            self._send_error("username já está em uso")
-            return
-        self._username = username
-        history = self._backend.get_history(limit=self._settings.history_max)
-        self._send_raw(
-            encode_line(
-                {
-                    "type": MessageType.WELCOME.value,
-                    "client_id": self._client_id,
-                    "username": self._username,
-                    "history": history,
-                }
-            )
-        )
-        self._backend.publish(
-            self._settings.pubsub_channel,
-            {
-                "type": MessageType.USER_JOINED.value,
-                "username": self._username,
-                "ts": _now_ts(),
-            },
-        )
-
-    def _handle_message(self, msg: dict[str, Any]) -> None:
-        if self._username is None:
-            self._send_error("login obrigatório")
-            return
-        text = _validate_text(str(msg.get("text", "")))
-        if not text:
-            self._send_error("mensagem vazia ou longa demais")
-            return
-        entry = {
-            "username": self._username,
-            "text": text,
-            "ts": _now_ts(),
-            "id": uuid.uuid4().hex,
-        }
-        self._backend.append_history(
-            {"username": entry["username"], "text": entry["text"], "ts": entry["ts"], "id": entry["id"]}
-        )
-        self._backend.publish(
-            self._settings.pubsub_channel,
-            {
-                "type": MessageType.CHAT.value,
-                "username": entry["username"],
-                "text": entry["text"],
-                "ts": entry["ts"],
-                "id": entry["id"],
-            },
-        )
-
-    def run(self) -> None:  # noqa: D102
+    def run(self) -> None:
         sender = self._send_raw
         self._sender = sender
         self._registry.add(sender)
         reader = self._conn.makefile("rb")
         try:
-            logger.info("Cliente conectado de %s", self._addr)
+            logger.info("TCP conectado de %s", self._addr)
             for raw_line in reader:
-                if self._closed.is_set():
-                    break
-                if not raw_line:
+                if self._closed.is_set() or not raw_line:
                     break
                 try:
                     msg = decode_line(raw_line)
-                except (UnicodeDecodeError, ValueError, TypeError) as exc:
-                    logger.info("Frame inválido de %s: %s", self._addr, exc)
+                except (UnicodeDecodeError, ValueError, TypeError):
                     self._send_error("frame JSON inválido")
                     continue
+
                 typ = msg.get("type")
-                if self._username is None:
+                if self._session_id is None:
                     if typ == MessageType.PING.value:
-                        self._send_raw(
-                            encode_line({"type": MessageType.PONG.value, "ts": _now_ts()}),
-                        )
+                        self._send_raw(encode_line({"type": MessageType.PONG.value, "ts": now_ts()}))
                         continue
                     if typ != MessageType.LOGIN.value:
                         self._send_error("envie login primeiro")
                         continue
-                    try:
-                        self._handle_login(msg)
-                    except Exception:
-                        logger.exception("Falha no login")
-                        self._send_error("erro interno ao autenticar")
+                    result = self._core.login(str(msg.get("username", "")))
+                    if isinstance(result, str):
+                        self._send_error(result)
+                        continue
+                    self._session_id = result.session_id
+                    self._send_raw(
+                        encode_line(
+                            {
+                                "type": MessageType.WELCOME.value,
+                                "client_id": result.client_id,
+                                "username": result.username,
+                                "history": result.history,
+                            },
+                        ),
+                    )
                     continue
+
                 if typ == MessageType.MESSAGE.value:
-                    try:
-                        self._handle_message(msg)
-                    except Exception:
-                        logger.exception("Falha ao processar mensagem")
-                        self._send_error("erro interno ao enviar mensagem")
+                    out = self._core.send_message(self._session_id, str(msg.get("text", "")))
+                    if isinstance(out, str):
+                        self._send_error(out)
                 elif typ == MessageType.PING.value:
-                    self._send_raw(encode_line({"type": MessageType.PONG.value, "ts": _now_ts()}))
+                    self._send_raw(encode_line({"type": MessageType.PONG.value, "ts": now_ts()}))
                 elif typ == MessageType.LOGIN.value:
                     self._send_error("já autenticado")
                 else:
                     self._send_error(f"tipo desconhecido: {typ!r}")
         except OSError as exc:
-            logger.info("Conexão encerrada (%s): %s", self._addr, exc)
+            logger.info("TCP encerrado (%s): %s", self._addr, exc)
         finally:
             self._cleanup()
             try:
@@ -188,29 +114,14 @@ class ClientSession(threading.Thread):
                 self._conn.close()
             except OSError:
                 pass
-            logger.info("Cliente desconectado de %s", self._addr)
 
     def _cleanup(self) -> None:
         if self._sender is not None:
             self._registry.remove(self._sender)
-        username = self._username
-        if username is None:
-            return
-        self._backend.release_presence(username)
-        try:
-            self._backend.publish(
-                self._settings.pubsub_channel,
-                {
-                    "type": MessageType.USER_LEFT.value,
-                    "username": username,
-                    "ts": _now_ts(),
-                },
-            )
-        except Exception:
-            logger.exception("Falha ao publicar sa do usuário")
+        if self._session_id:
+            self._core.logout(self._session_id)
 
     def close(self) -> None:
-        """Solicita encerramento cooperativo."""
         self._closed.set()
         try:
             self._conn.shutdown(socket.SHUT_RDWR)

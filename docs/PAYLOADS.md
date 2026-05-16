@@ -1,105 +1,27 @@
-# Contrato de payloads (TCP — NDJSON)
+# Contratos de API (HTTP — produção)
 
-Todas as mensagens são **uma linha UTF-8** com um único objeto JSON, terminada em `\n` (estilo NDJSON).
+Em produção o navegador fala **somente HTTP/HTTPS** com o servidor Render. O protocolo NDJSON/TCP permanece documentado na seção [TCP legado](#tcp-legado-ndjson).
 
-## Tipos comuns
+Base URL: `https://SEU_APP.onrender.com` (mesma origem do front após deploy).
 
-| Campo | Tipo | Descrição |
-| --- | --- | --- |
-| `type` | string | Discriminador do payload (ver tabelas abaixo). |
+Headers comuns:
+
+| Header | Uso |
+| --- | --- |
+| `Content-Type` | `application/json` em POST |
+| `X-Session-Id` | Sessão após login (mensagens, heartbeat, histórico) |
 
 ---
 
-## Cliente → Servidor (proxy envia estes tipos)
-
-### `login`
-
-Autentica o usuário na sessão TCP.
+## `GET /health`
 
 ```json
-{"type":"login","username":"alice"}
-```
-
-Regras:
-
-- Deve ser o primeiro comando “de aplicação” após conectar; antes do login só `ping` é aceito.
-- `username`: 1–32 caracteres (trim), não vazio.
-
-### `message`
-
-Envia mensagem de bate-papo após autenticado.
-
-```json
-{"type":"message","text":"Olá, pessoal!"}
-```
-
-Regras:
-
-- `text`: 1–4000 caracteres (trim), não vazio.
-
-### `ping` (opcional)
-
-Keep-alive / diagnóstico. Pode ser enviado **antes** do `login`.
-
-```json
-{"type":"ping"}
+{"status":"ok","instance":"render-instance-id"}
 ```
 
 ---
 
-## Servidor → Cliente (broadcast ou resposta direta)
-
-### `welcome` (resposta direta ao `login`)
-
-```json
-{"type":"welcome","client_id":"<uuid>","username":"alice","history":[{"username":"bob","text":"oi","ts":1710000000.123,"id":"<uuid>"}]}
-```
-
-- `history`: mais recentes por último na lista (ordenado cronologicamente no JSON).
-
-### `error`
-
-```json
-{"type":"error","message":"username já está em uso"}
-```
-
-### `chat` (broadcast via pub/sub + entrega local)
-
-```json
-{"type":"chat","username":"alice","text":"Oi!","ts":1710000000.123,"id":"<uuid>"}
-```
-
-### `user_joined`
-
-```json
-{"type":"user_joined","username":"alice","ts":1710000000.123}
-```
-
-### `user_left`
-
-```json
-{"type":"user_left","username":"alice","ts":1710000000.123}
-```
-
-### `pong` (resposta a `ping`)
-
-```json
-{"type":"pong","ts":1710000000.123}
-```
-
----
-
-## HTTP do Proxy (contrato para o front)
-
-O front-end (`frontend/`) consome estas rotas via `chatService.ts`. Em desenvolvimento, o prefixo base é `/api` (proxy do Vite); em produção, use `VITE_PROXY_URL`.
-
-### `GET /health`
-
-```json
-{"status":"ok","connected":true,"user":"alice"}
-```
-
-### `POST /login`
+## `POST /login`
 
 Body:
 
@@ -110,21 +32,31 @@ Body:
 200:
 
 ```json
-{"type":"welcome","client_id":"...","username":"alice","history":[...]}
+{
+  "type":"welcome",
+  "session_id":"abc123...",
+  "client_id":"abc123...",
+  "username":"alice",
+  "history":[{"username":"bob","text":"oi","ts":1710000000.123,"id":"uuid"}]
+}
 ```
 
-401 (erro vindo do servidor):
+401:
 
 ```json
-{"type":"error","message":"..."}
+{"type":"error","message":"username já está em uso"}
 ```
 
-### `POST /messages`
+---
+
+## `POST /messages`
+
+Headers: `X-Session-Id`
 
 Body:
 
 ```json
-{"text":"Olá"}
+{"text":"Olá!"}
 ```
 
 200:
@@ -133,15 +65,43 @@ Body:
 {"status":"enqueued"}
 ```
 
-### `GET /events` (SSE)
+---
 
-Frames:
+## `POST /heartbeat`
+
+Headers: `X-Session-Id` — renova TTL da sessão (5 min).
+
+---
+
+## `GET /history?since=1710000000.0`
+
+Headers: `X-Session-Id`
+
+Retorna mensagens com `ts` **maior** que `since` (recuperação após failover).
+
+```json
+{"messages":[{"username":"...","text":"...","ts":...,"id":"..."}]}
+```
+
+---
+
+## `GET /events?session={session_id}`
+
+SSE. Cada frame:
 
 ```
-data: {"type":"chat",...}
+data: {"type":"chat","username":"alice","text":"Oi","ts":1710000000.123,"id":"uuid"}
 
-data: {"type":"user_joined",...}
+data: {"type":"user_joined","username":"bob","ts":1710000000.5}
 
 ```
 
-> Eventos `welcome`/`error` do TCP são consumidos internamente pelo proxy durante o login e normalmente **não** aparecem no SSE.
+Keep-alive: linhas `: keepalive`
+
+---
+
+## TCP legado (NDJSON)
+
+Uma linha JSON + `\n` por frame. Tipos: `login`, `message`, `welcome`, `chat`, `error`, `user_joined`, `user_left`, `ping`, `pong`.
+
+Usado por `client/` (proxy local) e porta TCP opcional (`ENABLE_TCP_SERVER=true`).

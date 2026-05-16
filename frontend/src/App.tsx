@@ -18,52 +18,91 @@ function appendUniqueMessage(messages: ChatMessage[], next: ChatMessage): ChatMe
   return [...messages, next];
 }
 
+function applySsePayload(
+  payload: SsePayload,
+  currentUsername: string,
+  prev: ChatMessage[],
+): ChatMessage[] {
+  if (payload.type === 'chat' && payload.username && payload.text && payload.ts && payload.id) {
+    const message = socketChatToMessage(
+      {
+        username: payload.username,
+        text: payload.text,
+        ts: payload.ts,
+        id: payload.id,
+      },
+      currentUsername,
+    );
+    return appendUniqueMessage(prev, message);
+  }
+
+  if (payload.type === 'user_joined' || payload.type === 'user_left') {
+    const systemMessage = presenceToSystemMessage(payload, payload.type);
+    if (systemMessage) {
+      return appendUniqueMessage(prev, systemMessage);
+    }
+  }
+
+  return prev;
+}
+
 export default function App() {
   const [session, setSession] = useState<AppSession>({ status: 'anonymous' });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [connectionNotice, setConnectionNotice] = useState('');
 
   const handleSseEvent = useCallback(
     (payload: SsePayload) => {
       if (session.status !== 'authenticated') {
         return;
       }
-
-      const currentUsername = session.user.username;
-
-      if (payload.type === 'chat' && payload.username && payload.text && payload.ts && payload.id) {
-        const message = socketChatToMessage(
-          {
-            username: payload.username,
-            text: payload.text,
-            ts: payload.ts,
-            id: payload.id,
-          },
-          currentUsername,
-        );
-        setMessages((prev) => appendUniqueMessage(prev, message));
-        return;
-      }
-
-      if (payload.type === 'user_joined' || payload.type === 'user_left') {
-        const systemMessage = presenceToSystemMessage(payload, payload.type);
-        if (systemMessage) {
-          setMessages((prev) => appendUniqueMessage(prev, systemMessage));
-        }
-      }
+      setMessages((prev) => applySsePayload(payload, session.user.username, prev));
     },
     [session],
   );
 
-  useChatEvents(session.status === 'authenticated', handleSseEvent);
+  const handleCatchUp = useCallback(
+    (payloads: SsePayload[]) => {
+      if (session.status !== 'authenticated') {
+        return;
+      }
+      setMessages((prev) => {
+        let next = prev;
+        for (const payload of payloads) {
+          next = applySsePayload(payload, session.user.username, next);
+        }
+        return next;
+      });
+    },
+    [session],
+  );
+
+  useChatEvents({
+    enabled: session.status === 'authenticated',
+    sessionId: session.status === 'authenticated' ? session.sessionId : '',
+    onEvent: handleSseEvent,
+    onCatchUp: handleCatchUp,
+    onReconnected: () => setConnectionNotice('Conexão restabelecida — você permanece no chat.'),
+  });
 
   async function handleLogin(username: string) {
-    const { user, messages: historyMessages } = await joinChat(username);
+    const { user, messages: historyMessages, sessionId } = await joinChat(username);
     setMessages(historyMessages);
-    setSession({ status: 'authenticated', user });
+    setConnectionNotice('');
+    setSession({ status: 'authenticated', user, sessionId });
   }
 
   if (session.status === 'authenticated') {
-    return <ChatScreen currentUser={session.user} messages={messages} conversationId={GLOBAL_CONVERSATION_ID} />;
+    return (
+      <ChatScreen
+        currentUser={session.user}
+        sessionId={session.sessionId}
+        messages={messages}
+        conversationId={GLOBAL_CONVERSATION_ID}
+        connectionNotice={connectionNotice}
+        onDismissNotice={() => setConnectionNotice('')}
+      />
+    );
   }
 
   return <IdentityScreen onLogin={handleLogin} />;
