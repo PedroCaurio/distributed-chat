@@ -8,6 +8,7 @@ import threading
 import uuid
 from typing import Any
 
+from common.demo_log import demo
 from common.protocol import MessageType
 
 from client.config import ProxySettings
@@ -48,7 +49,21 @@ class ProxyRuntime:
         with self._lock:
             return self._sessions.get(proxy_session_id)
 
+    def sessions_debug(self) -> list[str]:
+        """Resumo das sessões na memória desta VM (para [TRACE-LOOP])."""
+        with self._lock:
+            return [
+                f"{sid[:8]}…({sess.username})"
+                for sid, sess in self._sessions.items()
+            ]
+
     def login(self, username: str) -> dict[str, Any]:
+        demo(
+            logger,
+            "ProxyRuntime.login — abre socket TCP + thread recv para o navegador",
+            fn="client.runtime.ProxyRuntime.login",
+            username=username,
+        )
         proxy_sid = uuid.uuid4().hex
         demux = InboundDemux()
         bridge = SocketBridge(
@@ -101,6 +116,12 @@ class ProxyRuntime:
             sess.bridge.close()
 
     def send_chat(self, proxy_session_id: str, text: str) -> None:
+        demo(
+            logger,
+            "ProxyRuntime.send_chat — HTTP já recebeu; agora envia no TCP",
+            fn="client.runtime.ProxyRuntime.send_chat",
+            text=text,
+        )
         sess = self._require_session(proxy_session_id)
         if sess.bridge.is_closed():
             msg = "Conexão TCP encerrada; faça login novamente"

@@ -7,6 +7,7 @@ Set-Location (Join-Path $PSScriptRoot "frontend")
 if (-not (Test-Path ".env")) {
     @"
 VITE_API_URL=/api
+VITE_DEMO_LOGS=true
 "@ | Set-Content -Encoding utf8 ".env"
     Write-Host "Criado frontend/.env com VITE_API_URL=/api" -ForegroundColor Yellow
 }

@@ -2,6 +2,9 @@
 
 Hospedagem usada na demonstração: URL pública, sem instalar nada nos PCs da turma.
 
+**URL do projeto:** [https://distributed-chat-teste.fly.dev/](https://distributed-chat-teste.fly.dev/)  
+**Nome do app no Fly:** `distributed-chat-teste` (ver `fly.toml`)
+
 ## O que você precisa
 
 | Item | Para quê |
@@ -22,16 +25,15 @@ fly auth login
 Na pasta do projeto:
 
 ```powershell
-fly launch --no-deploy --copy-config --name distributed-chat-SEUNOME --region gru
 fly secrets set REDIS_URL="rediss://default:TOKEN@HOST.upstash.io:6379"
 fly deploy --no-cache
 fly scale count 2
 fly open
 ```
 
-URL típica: `https://distributed-chat-SEUNOME.fly.dev`
+Se for criar outro app do zero: `fly launch --no-deploy --copy-config --name distributed-chat-teste --region gru`
 
-Teste rápido: `https://SEU_APP.fly.dev/health` → JSON com `"status":"ok"`.
+Teste rápido: [https://distributed-chat-teste.fly.dev/health](https://distributed-chat-teste.fly.dev/health) → JSON com `"status":"ok"`.
 
 ## O que o Docker faz aqui
 

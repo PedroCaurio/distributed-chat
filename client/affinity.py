@@ -10,6 +10,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from common.trace_log import trace_loop
+
 COOKIE_NAME: Final[str] = "fly_machine_id"
 AFFINITY_PREFIX: Final[str] = "proxy:affinity:"
 AFFINITY_TTL_SECONDS: Final[int] = 86_400
@@ -71,7 +73,18 @@ class FlyAffinityMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if self._local and request.url.path not in {"/health"}:
             target = _target_machine(request, self._store)
+            sid = _session_id_from_request(request) or ""
             if target and target != self._local:
+                trace_loop(
+                    "Fly replay → outra VM",
+                    path=request.url.path,
+                    session_id=sid,
+                    status=307,
+                    local_vm=self._local,
+                    destino=target,
+                    cookie_vm=request.cookies.get(COOKIE_NAME, "") or "-",
+                    trace_tab=request.headers.get("x-trace-tab", "") or "-",
+                )
                 return Response(
                     content="",
                     status_code=307,

@@ -1,3 +1,5 @@
+import { demoLog } from '../lib/demoLog';
+import { getTraceTabId, traceLog } from '../lib/traceLog';
 import type { ChatMessage, UserProfile } from '../types';
 import { clearFlyInstanceId, getFlyInstanceId, setFlyInstanceId } from '../lib/flyInstance';
 import {
@@ -15,7 +17,10 @@ function apiUrl(path: string): string {
 }
 
 function buildHeaders(sessionId: string | null): HeadersInit {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Trace-Tab': getTraceTabId(),
+  };
   if (sessionId) {
     headers['X-Session-Id'] = sessionId;
   }
@@ -63,6 +68,7 @@ export function getSessionId(): string | null {
 }
 
 export async function joinChat(username: string): Promise<JoinChatResult> {
+  demoLog('chatService.joinChat', 'POST /login — pede entrada na sala', { username });
   const response = await fetch(apiUrl('/login'), {
     ...fetchOptions,
     method: 'POST',
@@ -95,10 +101,19 @@ export async function joinChat(username: string): Promise<JoinChatResult> {
     historyEntryToMessage(entry, trimmedUsername),
   );
 
+  demoLog('chatService.joinChat', 'Login OK — histórico carregado', {
+    sessionId: payload.session_id,
+    historyCount: messages.length,
+  });
+
   return { user, messages, sessionId: payload.session_id };
 }
 
 export async function sendMessage(content: string, sessionId: string): Promise<void> {
+  demoLog('chatService.sendMessage', 'POST /messages — texto vai ao proxy Python', {
+    text: content.trim(),
+    sessionId,
+  });
   const response = await fetch(apiUrl('/messages'), {
     ...fetchOptions,
     method: 'POST',
@@ -120,27 +135,49 @@ export async function sendMessage(content: string, sessionId: string): Promise<v
   }
 }
 
-export async function sendHeartbeat(sessionId: string): Promise<void> {
-  await fetch(apiUrl('/heartbeat'), {
+export async function sendHeartbeat(sessionId: string): Promise<boolean> {
+  traceLog('fetch POST /heartbeat', { sessionId: sessionId.slice(0, 12) });
+  const response = await fetch(apiUrl('/heartbeat'), {
     ...fetchOptions,
     method: 'POST',
     headers: buildHeaders(sessionId),
   });
+  traceLog('heartbeat resposta', { status: response.status, ok: response.ok });
+  return response.ok;
 }
+
+/** Evita abrir SSE com sessão que já não existe no proxy (para sessão antiga / VM errada). */
+export async function isSessionAlive(sessionId: string): Promise<boolean> {
+  return sendHeartbeat(sessionId);
+}
+
+export type HistoryFetchResult = {
+  messages: HistoryEntry[];
+  unauthorized: boolean;
+};
 
 export async function fetchHistorySince(
   since: number,
   sessionId: string,
-): Promise<HistoryEntry[]> {
-  const response = await fetch(apiUrl(`/history?since=${since}`), {
+): Promise<HistoryFetchResult> {
+  const qs = new URLSearchParams({
+    since: String(since),
+    session: sessionId,
+  });
+  traceLog('fetch GET /history', { sessionId: sessionId.slice(0, 12), since });
+  const response = await fetch(apiUrl(`/history?${qs}`), {
     ...fetchOptions,
     headers: buildHeaders(sessionId),
   });
+  traceLog('history resposta', { status: response.status });
+  if (response.status === 401 || response.status === 410) {
+    return { messages: [], unauthorized: true };
+  }
   if (!response.ok) {
-    return [];
+    return { messages: [], unauthorized: false };
   }
   const body = (await response.json()) as { messages: HistoryEntry[] };
-  return body.messages ?? [];
+  return { messages: body.messages ?? [], unauthorized: false };
 }
 
 export async function logout(sessionId: string): Promise<void> {

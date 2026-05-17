@@ -3,9 +3,11 @@ import { LogIn, User } from 'lucide-react';
 
 type IdentityScreenProps = {
   onLogin: (username: string) => Promise<void>;
+  notice?: string;
+  onDismissNotice?: () => void;
 };
 
-export default function IdentityScreen({ onLogin }: IdentityScreenProps) {
+export default function IdentityScreen({ onLogin, notice, onDismissNotice }: IdentityScreenProps) {
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -43,6 +45,16 @@ export default function IdentityScreen({ onLogin }: IdentityScreenProps) {
         </div>
 
         <section className="identity-card" aria-label="Identificação do usuário">
+          {notice ? (
+            <p className="field-error" role="status">
+              {notice}
+              {onDismissNotice ? (
+                <button type="button" className="notice-dismiss" onClick={onDismissNotice}>
+                  Ok
+                </button>
+              ) : null}
+            </p>
+          ) : null}
           <form className="identity-form" onSubmit={handleSubmit} noValidate>
             <label htmlFor="username">Usuário</label>
             <div className="input-with-icon">

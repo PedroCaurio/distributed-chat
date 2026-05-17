@@ -10,11 +10,12 @@ from __future__ import annotations
 import logging
 import time
 
-from server.main import _configure_logging, start_server
+from common.demo_log import configure_logging
+from server.main import start_server
 
 
 def main() -> None:
-    _configure_logging()
+    configure_logging()
     logging.getLogger(__name__).info("Iniciando stack servidor TCP + cliente HTTP...")
     start_server()
     time.sleep(0.3)

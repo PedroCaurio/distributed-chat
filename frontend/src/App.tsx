@@ -1,8 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { demoLog } from './lib/demoLog';
 import ChatScreen from './components/ChatScreen';
 import IdentityScreen from './components/IdentityScreen';
 import { useChatEvents } from './hooks/useChatEvents';
-import { joinChat } from './services/chatService';
+import { clearStoredSessionId } from './lib/sessionStorage';
+import { joinChat, logout } from './services/chatService';
 import type { AppSession, ChatMessage } from './types';
 import {
   GLOBAL_CONVERSATION_ID,
@@ -50,12 +52,16 @@ export default function App() {
   const [session, setSession] = useState<AppSession>({ status: 'anonymous' });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionNotice, setConnectionNotice] = useState('');
+  const sessionInvalidHandled = useRef(false);
 
   const handleSseEvent = useCallback(
     (payload: SsePayload) => {
       if (session.status !== 'authenticated') {
         return;
       }
+      demoLog('App.handleSseEvent', 'Atualizando lista de mensagens na tela', {
+        type: payload.type,
+      });
       setMessages((prev) => applySsePayload(payload, session.user.username, prev));
     },
     [session],
@@ -85,16 +91,32 @@ export default function App() {
     setConnectionNotice('');
   }, []);
 
+  const handleSessionInvalid = useCallback(() => {
+    if (sessionInvalidHandled.current) {
+      return;
+    }
+    sessionInvalidHandled.current = true;
+    clearStoredSessionId();
+    if (session.status === 'authenticated') {
+      void logout(session.sessionId);
+    }
+    setSession({ status: 'anonymous' });
+    setMessages([]);
+    setConnectionNotice('Sessão expirada ou inválida. Entre novamente com seu username.');
+  }, [session]);
+
   useChatEvents({
     enabled: session.status === 'authenticated',
     sessionId: session.status === 'authenticated' ? session.sessionId : '',
     onEvent: handleSseEvent,
     onCatchUp: handleCatchUp,
     onReconnected: handleReconnected,
+    onSessionInvalid: handleSessionInvalid,
   });
 
   async function handleLogin(username: string) {
     const { user, messages: historyMessages, sessionId } = await joinChat(username);
+    sessionInvalidHandled.current = false;
     setMessages(historyMessages);
     setConnectionNotice('');
     setSession({ status: 'authenticated', user, sessionId });
@@ -113,5 +135,7 @@ export default function App() {
     );
   }
 
-  return <IdentityScreen onLogin={handleLogin} />;
+  return (
+    <IdentityScreen onLogin={handleLogin} notice={connectionNotice} onDismissNotice={handleDismissNotice} />
+  );
 }

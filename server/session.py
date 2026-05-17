@@ -7,6 +7,7 @@ import socket
 import threading
 from typing import TYPE_CHECKING, Any
 
+from common.demo_log import demo, tcp_frame, thread_start
 from common.protocol import MessageType, decode_line, encode_line
 from server.chat_core import now_ts
 
@@ -52,6 +53,11 @@ class ClientSession(threading.Thread):
         self._send_raw(encode_line({"type": MessageType.ERROR.value, "message": message}))
 
     def run(self) -> None:
+        thread_start(
+            logger,
+            "ClientSession.run — atende UM cliente TCP (requisito: thread por conexão)",
+            peer=f"{self._addr[0]}:{self._addr[1]}",
+        )
         sender = self._send_raw
         self._sender = sender
         self._registry.add(sender)
@@ -67,6 +73,7 @@ class ClientSession(threading.Thread):
                     self._send_error("frame JSON inválido")
                     continue
 
+                tcp_frame(logger, "← recebido", msg, fn="server.session.ClientSession.run")
                 typ = msg.get("type")
                 if self._session_id is None:
                     if typ == MessageType.PING.value:
@@ -80,16 +87,20 @@ class ClientSession(threading.Thread):
                         self._send_error(result)
                         continue
                     self._session_id = result.session_id
-                    self._send_raw(
-                        encode_line(
-                            {
-                                "type": MessageType.WELCOME.value,
-                                "session_id": result.session_id,
-                                "client_id": result.client_id,
-                                "username": result.username,
-                                "history": result.history,
-                            },
-                        ),
+                    welcome = {
+                        "type": MessageType.WELCOME.value,
+                        "session_id": result.session_id,
+                        "client_id": result.client_id,
+                        "username": result.username,
+                        "history": result.history,
+                    }
+                    self._send_raw(encode_line(welcome))
+                    tcp_frame(logger, "→ enviado", welcome, fn="server.session.ClientSession.run")
+                    demo(
+                        logger,
+                        "Login OK — sessão registrada no Redis",
+                        fn="server.session.ClientSession.run",
+                        username=result.username,
                     )
                     continue
 
@@ -97,6 +108,14 @@ class ClientSession(threading.Thread):
                     out = self._core.send_message(self._session_id, str(msg.get("text", "")))
                     if isinstance(out, str):
                         self._send_error(out)
+                    else:
+                        demo(
+                            logger,
+                            "Mensagem aceita — publicada no Redis (outras VMs e clientes recebem)",
+                            fn="server.session.ClientSession.run",
+                            username=out.username,
+                            text=out.text,
+                        )
                 elif typ == MessageType.HISTORY_SINCE.value:
                     since = float(msg.get("since", 0))
                     items = self._backend.get_history_since(

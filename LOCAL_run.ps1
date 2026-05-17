@@ -12,5 +12,6 @@ if (-not (Test-Path ".env")) {
 }
 
 $env:PYTHONPATH = $root
-Write-Host "Iniciando stack local (TCP :9000 + HTTP :8080)..." -ForegroundColor Cyan
+if (-not $env:DEMO_LOGS) { $env:DEMO_LOGS = "1" }
+Write-Host "Iniciando stack local (TCP :9000 + HTTP :8080) DEMO_LOGS=$env:DEMO_LOGS" -ForegroundColor Cyan
 python -m stack

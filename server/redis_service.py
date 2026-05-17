@@ -10,6 +10,8 @@ from typing import Any, Final
 
 import redis
 
+from common.demo_log import thread_start
+
 logger = logging.getLogger(__name__)
 
 HISTORY_KEY: Final[str] = "chat:history"
@@ -121,6 +123,11 @@ def start_pubsub_listener(
     """Thread dedicada que escuta pub/sub Redis (replicação entre instâncias)."""
 
     def _run() -> None:
+        thread_start(
+            logger,
+            "redis-pubsub — escuta Redis e repassa broadcasts entre VMs Fly",
+            channel=channel,
+        )
         client = redis.Redis.from_url(url, decode_responses=True)
         pubsub = client.pubsub(ignore_subscribe_messages=True)
         pubsub.subscribe(channel)

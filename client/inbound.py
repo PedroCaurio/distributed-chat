@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 from typing import Any, Final
 
+logger = logging.getLogger(__name__)
+
+from common.demo_log import demo
 from common.protocol import MessageType
 
 
@@ -93,6 +97,11 @@ class InboundDemux:
                 return
             targets = list(self._subscribers)
 
+        demo(
+            logger,
+            f"InboundDemux.push — repassa evento SSE type={typ!r} para {len(targets)} listener(s)",
+            fn="client.inbound.InboundDemux.push",
+        )
         for q in targets:
             try:
                 q.put_nowait(msg)

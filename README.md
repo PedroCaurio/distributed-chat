@@ -2,6 +2,8 @@
 
 Chat multiusuário para a disciplina de redes: **sockets TCP**, **threads**, interface **web** e hospedagem **online** (Fly.io).
 
+**App em produção:** [https://distributed-chat-teste.fly.dev/](https://distributed-chat-teste.fly.dev/)
+
 ## Comece por aqui (grupo)
 
 | Documento | Conteúdo |
@@ -15,7 +17,7 @@ Chat multiusuário para a disciplina de redes: **sockets TCP**, **threads**, int
 
 ## Demonstração em aula
 
-1. Abra `https://SEU_APP.fly.dev` (após o deploy).
+1. Abra [https://distributed-chat-teste.fly.dev/](https://distributed-chat-teste.fly.dev/)
 2. Cada pessoa escolhe um **username** e conversa na sala global.
 3. Nada para instalar nos computadores — só o navegador.
 
@@ -52,14 +54,24 @@ distributed-chat/
 
 ```powershell
 fly auth login
-fly launch --no-deploy --copy-config --name distributed-chat-SEUNOME --region gru
 fly secrets set REDIS_URL="rediss://..."
 fly deploy
 fly scale count 2
 fly open
 ```
 
+O app deste repositório já está configurado como `distributed-chat-teste` no `fly.toml`.
+
 Detalhes: [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## Logs para a apresentação
+
+| Onde | Como ativar | O que ver |
+|------|-------------|-----------|
+| Navegador | `VITE_DEMO_LOGS=true` em `frontend/.env` | F12 → Console, prefixo `[DEMO][navegador]` |
+| Python | `DEMO_LOGS=1` no `.env` ou `fly secrets set DEMO_LOGS=1` | Terminal / `fly logs` — blocos `[DEMO]` e `[TRACE]` em linhas curtas |
+
+Detalhes: [docs/APRESENTACAO.md](docs/APRESENTACAO.md) (seção 3).
 
 ## Testar no seu computador
 

@@ -7,6 +7,7 @@ import socket
 import threading
 from typing import TYPE_CHECKING
 
+from common.demo_log import demo, tcp_frame, thread_start
 from common.protocol import MessageType, decode_line, encode_line
 
 if TYPE_CHECKING:
@@ -58,6 +59,12 @@ class SocketBridge:
         self._conn.connect((self._host, self._port))
         self._conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self._reader_thread.start()
+        demo(
+            logger,
+            f"Thread de recepção disparada: {self._reader_thread.name!r} (requisito do enunciado)",
+            fn="client.socket_bridge.SocketBridge.connect",
+            username=self._username,
+        )
         logger.info("TCP conectado a %s:%s (%s)", self._host, self._port, self._username)
 
     def is_closed(self) -> bool:
@@ -82,21 +89,26 @@ class SocketBridge:
         self._send_raw(encode_line({"type": MessageType.PING.value}))
 
     def send_login(self, username: str) -> None:
-        self._send_raw(
-            encode_line({"type": MessageType.LOGIN.value, "username": username}),
-        )
+        frame = {"type": MessageType.LOGIN.value, "username": username}
+        self._send_raw(encode_line(frame))
+        tcp_frame(logger, "→ enviado", frame, fn="client.socket_bridge.SocketBridge.send_login")
 
     def send_message(self, text: str) -> None:
-        self._send_raw(
-            encode_line({"type": MessageType.MESSAGE.value, "text": text}),
-        )
+        frame = {"type": MessageType.MESSAGE.value, "text": text}
+        self._send_raw(encode_line(frame))
+        tcp_frame(logger, "→ enviado", frame, fn="client.socket_bridge.SocketBridge.send_message")
 
     def send_history_since(self, since: float) -> None:
-        self._send_raw(
-            encode_line({"type": MessageType.HISTORY_SINCE.value, "since": since}),
-        )
+        frame = {"type": MessageType.HISTORY_SINCE.value, "since": since}
+        self._send_raw(encode_line(frame))
+        tcp_frame(logger, "→ enviado", frame, fn="client.socket_bridge.SocketBridge.send_history_since")
 
     def _recv_loop(self) -> None:
+        thread_start(
+            logger,
+            "SocketBridge._recv_loop — só recebe frames TCP (HTTP fica em outra thread)",
+            username=self._username,
+        )
         try:
             fp = self._conn.makefile("rb")
             try:
@@ -108,6 +120,7 @@ class SocketBridge:
                     except (UnicodeDecodeError, ValueError, TypeError) as exc:
                         logger.info("Frame inválido (%s): %s", self._username, exc)
                         continue
+                    tcp_frame(logger, "← recebido", msg, fn="client.socket_bridge.SocketBridge._recv_loop")
                     self._demux.push(msg)
             finally:
                 try:

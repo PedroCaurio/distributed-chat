@@ -13,6 +13,7 @@ import socket
 import threading
 from typing import Any
 
+from common.demo_log import configure_logging, demo, enabled as demo_enabled
 from common.protocol import MessageType, encode_line
 from server.config import load_settings
 from server.redis_service import start_pubsub_listener
@@ -20,13 +21,6 @@ from server.session import ClientSession
 from server.state import ServerState
 
 logger = logging.getLogger(__name__)
-
-
-def _configure_logging() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
 
 
 def _pubsub_handler(state: ServerState):
@@ -37,6 +31,12 @@ def _pubsub_handler(state: ServerState):
             MessageType.USER_JOINED.value,
             MessageType.USER_LEFT.value,
         }:
+            demo(
+                logger,
+                f"Redis pub/sub → broadcast TCP para clientes conectados",
+                fn="server.main._pubsub_handler",
+                event_type=typ,
+            )
             state.tcp_registry.broadcast_bytes(encode_line(payload))
 
     return _handler
@@ -49,6 +49,12 @@ def _run_tcp_server(state: ServerState) -> None:
     sock.bind((settings.host, settings.port))
     sock.listen(128)
     logger.info("Servidor TCP escutando em %s:%s", settings.host, settings.port)
+    if demo_enabled():
+        demo(
+            logger,
+            "Modo DEMO ativo no servidor — logs mostram threads, TCP e funções",
+            fn="server.main._run_tcp_server",
+        )
 
     while not state.stop_event.is_set():
         try:
@@ -59,6 +65,12 @@ def _run_tcp_server(state: ServerState) -> None:
         except OSError:
             break
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        demo(
+            logger,
+            "Nova conexão TCP — disparando ClientSession (1 thread por conexão)",
+            fn="server.main._run_tcp_server",
+            peer=f"{addr[0]}:{addr[1]}",
+        )
         ClientSession(
             conn,
             addr,
@@ -109,7 +121,7 @@ def run() -> None:
 
 
 def main() -> None:
-    _configure_logging()
+    configure_logging()
     run()
 
 

@@ -1,5 +1,6 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { Search, Send, Settings, Smile } from 'lucide-react';
+import { demoLog } from '../lib/demoLog';
 import { sendMessage } from '../services/chatService';
 import type { ChatMessage, Conversation, UserProfile } from '../types';
 import { GLOBAL_CONVERSATION_ID } from '../utils/chatMappers';
@@ -79,6 +80,7 @@ export default function ChatScreen({
 
     setNotice('');
     setSending(true);
+    demoLog('ChatScreen.handleSendMessage', 'Usuário enviou — dispara cadeia HTTP → TCP → servidor');
     try {
       await sendMessage(content, sessionId);
       setMessageDraft('');

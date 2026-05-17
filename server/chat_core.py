@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from dataclasses import dataclass
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
+from common.demo_log import demo
 from server.config import ServerSettings
 from server.redis_service import RedisChatBackend
 
@@ -70,9 +74,13 @@ class ChatCore:
             return "username já está em uso"
 
         history = self._backend.get_history(limit=self._settings.history_max)
-        self._backend.publish(
-            self._settings.pubsub_channel,
-            {"type": "user_joined", "username": uname, "ts": now_ts()},
+        join_evt = {"type": "user_joined", "username": uname, "ts": now_ts()}
+        self._backend.publish(self._settings.pubsub_channel, join_evt)
+        demo(
+            logger,
+            "ChatCore.login — usuário entrou na sala",
+            fn="server.chat_core.ChatCore.login",
+            username=uname,
         )
         return LoginResult(
             session_id=session_id,
@@ -103,9 +111,14 @@ class ChatCore:
             "id": entry.id,
         }
         self._backend.append_history(stored)
-        self._backend.publish(
-            self._settings.pubsub_channel,
-            {"type": "chat", **stored},
+        chat_evt = {"type": "chat", **stored}
+        self._backend.publish(self._settings.pubsub_channel, chat_evt)
+        demo(
+            logger,
+            "ChatCore.send_message — gravou histórico e publicou no Redis",
+            fn="server.chat_core.ChatCore.send_message",
+            username=entry.username,
+            text=entry.text,
         )
         return entry
 

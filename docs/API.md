@@ -4,7 +4,7 @@ Referência rápida. Conceitos: [GLOSSARIO.md](GLOSSARIO.md).
 
 ## HTTP (navegador → `client/`)
 
-Base em produção: `https://SEU_APP.fly.dev` (mesma origem do React).
+Base em produção: [https://distributed-chat-teste.fly.dev](https://distributed-chat-teste.fly.dev) (mesma origem do React).
 
 Após o login, envie o header `X-Session-Id: <session_id>` nas requisições.
 
