@@ -217,7 +217,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Front-end (Node)
-frontend/node_modules/
-frontend/dist/
-frontend/.env
+# Backup / pasta antiga removida
+*.zip
+SIMPLY-IMPLEMENTATION/

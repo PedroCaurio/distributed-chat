@@ -1,75 +1,55 @@
-# API — como navegador e servidor se falam
+# API — HTTP (navegador) e TCP (proxy ↔ servidor)
 
-Referência rápida. Conceitos: [GLOSSARIO.md](GLOSSARIO.md).
+## HTTP — `proxy.py` (porta 8080)
 
-## HTTP (navegador → `client/`)
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/` | Interface `index.html` |
+| `POST` | `/login` | Body: `{ "username", "client_id?" }` → `{ "session_id", "history", "users" }` |
+| `POST` | `/resume` | Body: `{ "username", "client_id", "since?" }` — retoma após failover |
+| `POST` | `/message` | Header `X-Session-Id`; body `{ "text" }` |
+| `GET` | `/events?session=<id>` | SSE — eventos `chat`, `user_joined`, `user_left` |
+| `POST` | `/heartbeat` | Header `X-Session-Id` — mantém sessão |
+| `POST` | `/logout` | Encerra sessão TCP |
+| `GET` | `/history?since=<float>` | Mensagens após timestamp |
+| `GET` | `/health` | `{ "status": "ok", "role": "proxy", ... }` |
 
-Base em produção: [https://distributed-chat-teste.fly.dev](https://distributed-chat-teste.fly.dev) (mesma origem do React).
+Credenciais: cookie `fly_machine_id` (Fly) + header `X-Session-Id` nas rotas autenticadas.
 
-Após o login, envie o header `X-Session-Id: <session_id>` nas requisições.
+## SSE — formato
 
-### `POST /login`
+```
+data: {"type":"chat","id":"...","username":"...","text":"...","ts":123.4}
 
-Entrada:
-
-```json
-{ "username": "pedro" }
 ```
 
-Resposta (sucesso):
+Keepalive: linhas `: keepalive` ou comentário de padding.
 
-```json
-{
-  "type": "welcome",
-  "session_id": "...",
-  "username": "pedro",
-  "history": [ { "id": "...", "username": "...", "text": "...", "ts": 1.0 } ]
-}
-```
+## TCP — NDJSON (`protocol.py`)
 
-### `POST /messages`
+Cada frame é uma linha UTF-8 JSON + `\n`.
 
-```json
-{ "text": "Olá!" }
-```
+### Cliente → Servidor (proxy → server)
 
-### `GET /events?session=<session_id>`
+| type | Campos |
+|------|--------|
+| `login` | `username`, `client_id?`, `since?` |
+| `message` | `text` |
+| `ping` | — |
+| `logout` | — |
+| `history_since` | `since` |
 
-Stream SSE (`text/event-stream`): eventos `chat`, `user_joined`, `user_left`.
+### Servidor → Cliente
 
-### `GET /history?since=<timestamp>`
+| type | Campos |
+|------|--------|
+| `welcome` | `session_id`, `username`, `history`, `users`, `rejoined?` |
+| `chat` | `id`, `username`, `text`, `ts` |
+| `user_joined` / `user_left` | `username`, `ts`, `users` |
+| `history` | `items` |
+| `pong` | `ts` |
+| `error` | `message` |
 
-Recupera mensagens após um instante (útil após reconexão).
+## Redis pub/sub
 
-### `POST /heartbeat` e `POST /logout`
-
-Mantêm ou encerram a sessão TCP no servidor.
-
----
-
-## TCP ( `client/` → `server/` )
-
-Uma linha = um JSON. Definição dos tipos em `common/protocol.py`.
-
-| type | Sentido | Significado |
-|------|---------|-------------|
-| `login` | → servidor | Primeiro frame após conectar |
-| `welcome` | ← servidor | Login OK + histórico |
-| `message` | → servidor | Usuário enviou texto |
-| `chat` | ← servidor | Mensagem para todos |
-| `user_joined` / `user_left` | ← servidor | Presença na sala |
-| `history_since` / `history` | ↔ | Sincronizar após queda |
-| `ping` / `pong` | ↔ | Manter conexão viva |
-| `error` | ← servidor | Erro (ex.: username em uso) |
-
-Exemplo de envio:
-
-```json
-{"type":"message","text":"Olá"}
-```
-
-Exemplo de recepção:
-
-```json
-{"type":"chat","id":"...","username":"maria","text":"Oi","ts":1715000000.0}
-```
+Canal: `chat:events`. Payload JSON com `_origin` (ID da VM) para evitar eco duplicado no servidor TCP.

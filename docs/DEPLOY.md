@@ -1,92 +1,91 @@
 # Deploy no Fly.io
 
-Hospedagem usada na demonstração: URL pública, sem instalar nada nos PCs da turma.
+**URL de demonstração:** [https://chatnet-v2.fly.dev/](https://chatnet-v2.fly.dev/)
 
-**URL do projeto:** [https://distributed-chat-teste.fly.dev/](https://distributed-chat-teste.fly.dev/)  
-**Nome do app no Fly:** `distributed-chat-teste` (ver `fly.toml`)
+## Pré-requisitos
 
-## O que você precisa
-
-| Item | Para quê |
-|------|----------|
-| [Conta Fly.io](https://fly.io) | Hospedar o app |
-| [Upstash Redis](https://console.upstash.com) | Histórico e sincronização entre 2 máquinas |
-| [Fly CLI](https://fly.io/docs/flyctl/install/) | Comandos `fly deploy`, etc. |
-
-Instalar CLI no Windows:
+| Item | Uso |
+|------|-----|
+| [Fly.io](https://fly.io) | Hospedagem |
+| [Upstash Redis](https://console.upstash.com) | Histórico + pub/sub entre VMs |
+| [Fly CLI](https://fly.io/docs/flyctl/install/) | `fly deploy`, `fly secrets` |
 
 ```powershell
 powershell -Command "iwr https://fly.io/install.ps1 -useb | iex"
 fly auth login
 ```
 
-## Primeiro deploy
+## Atualizar o servidor (deploy)
 
-Na pasta do projeto:
+Na **raiz do repositório** (onde estão `fly.toml` e `Dockerfile`):
 
 ```powershell
-fly secrets set REDIS_URL="rediss://default:TOKEN@HOST.upstash.io:6379"
-fly deploy --no-cache
+cd C:\Users\pedro\OneDrive\Documentos\Faculdade\distributed-chat
+
+# 1. Secret do Redis (só se mudou ou primeira vez)
+fly secrets set REDIS_URL="rediss://default:SEU_TOKEN@SEU_HOST.upstash.io:6379"
+
+# 2. Build e publicação
+fly deploy
+
+# 3. Duas máquinas para failover do enunciado
 fly scale count 2
+
+# 4. Conferir
+fly status
+fly logs
 fly open
 ```
 
-Se for criar outro app do zero: `fly launch --no-deploy --copy-config --name distributed-chat-teste --region gru`
+Primeira vez no Fly:
 
-Teste rápido: [https://distributed-chat-teste.fly.dev/health](https://distributed-chat-teste.fly.dev/health) → JSON com `"status":"ok"`.
+```powershell
+fly launch --no-deploy --copy-config --name chatnet-v2 --region gru
+fly secrets set REDIS_URL="..."
+fly deploy
+fly scale count 2
+```
 
-## O que o Docker faz aqui
+Teste: [https://chatnet-v2.fly.dev/health](https://chatnet-v2.fly.dev/health) → `"status":"ok"`.
 
-O `Dockerfile`:
+## O que o container executa
 
-1. Compila o React (`npm run build`).
-2. Instala dependências Python.
-3. Copia `server/`, `client/`, `stack/`, `common/`.
-4. Inicia com `python -m stack` (servidor TCP na porta 9000 **dentro** do container; HTTP na 8080 **pública**).
+`Dockerfile` → `CMD ["python", "stack.py"]`:
 
-O Fly lê `fly.toml` e publica a porta 8080 na internet.
+- `server.py` — TCP na porta **9000** (interna)
+- `proxy.py` — HTTP na porta **8080** (pública via Fly)
 
-## Variáveis importantes
+## Variáveis (`fly.toml` + secrets)
 
-| Variável | Valor típico | Significado |
-|----------|--------------|-------------|
-| `REDIS_URL` | secret Fly | Conexão Upstash |
-| `PORT` | 8080 | HTTP do cliente (navegador) |
-| `CHAT_SERVER_PORT` | 9000 | TCP do servidor (interno) |
-| `CHAT_SERVER_HOST` | 127.0.0.1 | Servidor no mesmo container |
+| Variável | Valor | Significado |
+|----------|-------|-------------|
+| `REDIS_URL` | secret | Upstash |
+| `PORT` | 8080 | HTTP do proxy |
+| `SERVER_PORT` | 9000 | TCP do chat |
+| `SERVER_HOST` | 127.0.0.1 | Servidor no mesmo container |
 
 ## Demo de failover na aula
 
 ```powershell
 fly machines list
-fly machine stop <ID>
+fly machine stop <ID_DA_VM>
 ```
 
-Explique: uma réplica parou; usuários reconectam; histórico no Redis; segunda máquina segue ativa.
+Usuários na VM parada: `POST /resume` automático no front; histórico via Redis.
 
 ## Problemas comuns
 
-| Sintoma | O que verificar |
-|---------|-----------------|
-| Login falha / 503 | `REDIS_URL` no `fly secrets`; logs com `fly logs` |
-| Mensagens não aparecem com 2 VMs | Redeploy após mudanças; limpar cookies do site |
-| `username já está em uso` | Sessão antiga no Redis — apagar chave no console Upstash |
-| App “dormindo” | Abrir `/health` antes da aula |
+| Sintoma | Ação |
+|---------|------|
+| Login 503 | Verificar `REDIS_URL` com `fly secrets list` |
+| Mensagens só no histórico | Hard refresh (`Ctrl+Shift+R`); redeploy recente |
+| `username já em uso` | Limpar chaves `chat:*` no console Upstash |
 
-## Desenvolvimento no PC (não é a demo oficial)
-
-Use os scripts com prefixo **LOCAL**:
+## Local (não substitui URL pública)
 
 ```powershell
 copy .env.example .env
-# Edite REDIS_URL
 .\LOCAL_run.ps1
 ```
 
-Outro terminal:
-
-```powershell
-.\LOCAL_front.ps1
-```
-
-Abra `http://localhost:5173`.
+Abra http://localhost:8080

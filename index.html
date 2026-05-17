@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ChatNet v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:     #0b0f17; --surf:   #111827; --surf2:  #1a2235;
+  --border: #1f2d45; --accent: #22d3ee; --green:  #4ade80;
+  --amber:  #fbbf24; --red:    #f87171; --text:   #e2e8f0;
+  --muted:  #4b5e7a; --radius: 8px;
+  --mono:   'Space Mono', monospace; --ui: 'Syne', sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--ui);overflow:hidden}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 15% 60%,rgba(34,211,238,.05) 0%,transparent 55%),
+             radial-gradient(ellipse at 85% 20%,rgba(74,222,128,.04) 0%,transparent 50%)}
+
+/* Login */
+#login{display:flex;align-items:center;justify-content:center;height:100vh;position:relative;z-index:1}
+.card{background:var(--surf);border:1px solid var(--border);border-radius:16px;
+  padding:48px 52px;width:min(400px,92vw);display:flex;flex-direction:column;gap:22px;
+  box-shadow:0 0 80px rgba(34,211,238,.06)}
+.brand h1{font-family:var(--mono);font-size:2rem;font-weight:700;color:var(--accent);
+  letter-spacing:-1px;text-shadow:0 0 24px rgba(34,211,238,.3);text-align:center}
+.brand h1 span{color:var(--muted)}
+.brand p{color:var(--muted);font-size:.78rem;font-family:var(--mono);margin-top:6px;text-align:center}
+label{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.1em;font-family:var(--mono);display:block;margin-bottom:6px}
+input{width:100%;background:var(--surf2);border:1px solid var(--border);border-radius:var(--radius);
+  color:var(--text);font-family:var(--mono);font-size:.9rem;padding:11px 14px;outline:none;
+  transition:border-color .2s,box-shadow .2s}
+input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34,211,238,.12)}
+#err{color:var(--red);font-size:.78rem;font-family:var(--mono);min-height:16px;text-align:center}
+.btn{background:var(--accent);color:#000;border:none;border-radius:var(--radius);
+  font-family:var(--mono);font-size:.88rem;font-weight:700;padding:13px;cursor:pointer;
+  letter-spacing:.04em;transition:opacity .2s,transform .1s;width:100%}
+.btn:hover{opacity:.88;transform:translateY(-1px)}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+
+/* Chat */
+#chat{display:none;flex-direction:column;height:100vh;position:relative;z-index:1}
+header{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 20px;background:var(--surf);border-bottom:1px solid var(--border);flex-shrink:0}
+.hlogo{font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--accent)}
+.pill{display:flex;align-items:center;gap:6px;font-size:.72rem;font-family:var(--mono);
+  color:var(--muted);padding:4px 10px;background:var(--surf2);border-radius:20px;border:1px solid var(--border)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted);transition:background .3s}
+.dot.on{background:var(--green);box-shadow:0 0 7px var(--green)}
+.dot.off{background:var(--red)}
+.dot.wait{background:var(--amber);animation:blink 1s infinite}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);
+  border-radius:var(--radius);font-family:var(--mono);font-size:.72rem;padding:5px 11px;cursor:pointer;transition:all .2s}
+.btn-ghost:hover{border-color:var(--red);color:var(--red)}
+
+#body{display:flex;flex:1;overflow:hidden}
+aside{width:190px;background:var(--surf);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0}
+.aside-title{font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.1em;font-family:var(--mono);padding:14px 14px 10px;border-bottom:1px solid var(--border)}
+#ulist{list-style:none;padding:10px 0;overflow-y:auto;flex:1}
+#ulist li{display:flex;align-items:center;gap:7px;padding:6px 14px;
+  font-size:.78rem;font-family:var(--mono);color:var(--text)}
+#ulist li .udot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+#ulist li.me{color:var(--accent)}
+
+#msgs-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#msgs{flex:1;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:9px}
+#msgs::-webkit-scrollbar{width:3px}
+#msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+.msg{display:flex;flex-direction:column;max-width:68%;animation:up .2s ease}
+.msg.own{align-self:flex-end}
+.msg.other{align-self:flex-start}
+.msg.sys{align-self:center;max-width:100%}
+.bubble{padding:9px 13px;border-radius:10px;border-left:3px solid transparent;line-height:1.55}
+.msg.own .bubble{background:#0f2a1a;border-left-color:var(--green)}
+.msg.other .bubble{background:var(--surf2);border-left-color:var(--border)}
+.msg.sys .bubble{background:transparent;border:none;color:var(--muted);
+  font-size:.74rem;font-family:var(--mono);text-align:center;padding:2px 0}
+.meta{display:flex;align-items:baseline;gap:5px;margin-bottom:4px}
+.author{font-size:.72rem;font-weight:700;font-family:var(--mono);color:var(--accent)}
+.msg.own .author{color:var(--green)}
+.ts{font-size:.62rem;color:var(--muted);font-family:var(--mono)}
+.txt{font-size:.87rem;word-break:break-word}
+
+#banner{display:none;background:#1c1200;border-top:1px solid var(--amber);
+  color:var(--amber);font-family:var(--mono);font-size:.74rem;padding:7px 20px;text-align:center}
+#input-area{padding:14px 20px;background:var(--surf);border-top:1px solid var(--border);
+  display:flex;gap:9px;align-items:center;flex-shrink:0}
+#msg-in{flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:var(--radius);
+  color:var(--text);font-family:var(--mono);font-size:.88rem;padding:10px 14px;outline:none;
+  transition:border-color .2s,box-shadow .2s}
+#msg-in:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34,211,238,.1)}
+#msg-in:disabled{opacity:.35;cursor:not-allowed}
+#send{background:var(--accent);color:#000;border:none;border-radius:var(--radius);
+  font-family:var(--mono);font-size:.82rem;font-weight:700;padding:10px 18px;cursor:pointer;
+  transition:opacity .2s,transform .1s;white-space:nowrap}
+#send:hover{opacity:.88;transform:translateY(-1px)}
+#send:disabled{opacity:.35;cursor:not-allowed;transform:none}
+
+@keyframes up{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+@media(max-width:560px){aside{display:none}.card{padding:32px 22px}}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login">
+  <div class="card">
+    <div class="brand">
+      <h1><span>//</span>ChatNet <span style="font-size:1rem">v2</span></h1>
+      <p>TCP · NDJSON · SSE · Redis · sem WebSocket</p>
+    </div>
+    <div>
+      <label for="uname">Seu apelido</label>
+      <input id="uname" type="text" placeholder="ex.: joao99" maxlength="32" autocomplete="off"/>
+    </div>
+    <div id="err"></div>
+    <button class="btn" id="join-btn">Entrar →</button>
+  </div>
+</div>
+
+<!-- Chat -->
+<div id="chat">
+  <header>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="hlogo">//ChatNet v2</span>
+      <div class="pill">
+        <span class="dot wait" id="sdot"></span>
+        <span id="stxt">conectando…</span>
+      </div>
+      <span id="proto-tag" style="font-size:.68rem;color:var(--muted);font-family:var(--mono)"></span>
+    </div>
+    <button class="btn-ghost" id="leave">Sair</button>
+  </header>
+  <div id="body">
+    <aside>
+      <div class="aside-title">Online</div>
+      <ul id="ulist"></ul>
+    </aside>
+    <div id="msgs-wrap">
+      <div id="msgs"></div>
+      <div id="banner">⚠ Reconectando SSE…</div>
+      <div id="input-area">
+        <input id="msg-in" type="text" placeholder="Mensagem… (Enter para enviar)" maxlength="500" disabled autocomplete="off"/>
+        <button id="send" disabled>Enviar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * index.html — Cliente web ChatNet v2
+ * ===================================
+ * Interface servida pelo proxy (GET /). Login e envio via fetch; tempo real via
+ * EventSource (SSE) em GET /events?session=... — sem WebSocket.
+ * Comunicação 100% via HTTP — zero WebSocket.
+ *
+ * Envio:   fetch POST /message  (requisição HTTP normal)
+ * Recepção: EventSource GET /events?sid=...  (SSE — HTTP com conexão aberta)
+ *
+ * EventSource é nativo do browser e não é WebSocket:
+ *   - Protocolo HTTP/1.1 padrão com Transfer-Encoding: chunked
+ *   - Unidirecional (servidor → cliente)
+ *   - Reconexão automática embutida no browser
+ *
+ * O envio de mensagens usa fetch() normal (POST HTTP).
+ * Não há WebSocket em lugar nenhum neste arquivo.
+ */
+
+const $ = id => document.getElementById(id);
+
+const CLIENT_KEY = 'chatnet_client_id';
+const clientId = localStorage.getItem(CLIENT_KEY) || crypto.randomUUID();
+localStorage.setItem(CLIENT_KEY, clientId);
+
+let sessionId = null;
+let myUsername = null;
+let eventSource = null;
+let lastEventTs = 0;
+let healing = false;
+let heartbeatTimer = null;
+const seenIds = new Set();
+const outbox = [];
+
+const loginEl = $('login'), chatEl = $('chat');
+const unameEl = $('uname'), errEl = $('err'), joinBtn = $('join-btn');
+const msgsEl = $('msgs'), msgIn = $('msg-in'), sendBtn = $('send');
+const ulistEl = $('ulist');
+const sdot = $('sdot'), stxt = $('stxt'), protoTag = $('proto-tag');
+
+// ── Helpers de UI ──────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtTime(ts) {
+  if (!ts) return '';
+  return new Date(ts * 1000).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+}
+
+function apiHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (sessionId) h['X-Session-Id'] = sessionId;
+  return h;
+}
+
+function addMsg({ type, username: u, text, ts, id }) {
+  if (id && seenIds.has(id)) return;
+  if (id) seenIds.add(id);
+  if (ts) lastEventTs = Math.max(lastEventTs, ts);
+
+  const el = document.createElement('div');
+  if (type === 'system') {
+    el.className = 'msg sys';
+    el.innerHTML = `<div class="bubble">${text}</div>`;
+  } else {
+    el.className = `msg ${u === myUsername ? 'own' : 'other'}`;
+    el.innerHTML = `
+      <div class="meta">
+        <span class="author">${esc(u)}</span>
+        <span class="ts">${fmtTime(ts)}</span>
+      </div>
+      <div class="bubble"><span class="txt">${esc(text)}</span></div>`;
+  }
+  msgsEl.appendChild(el);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+function applyHistory(items) {
+  (items || []).forEach(m => {
+    if (m.type === 'chat' || !m.type) {
+      addMsg({ type: 'chat', username: m.username, text: m.text, ts: m.ts, id: m.id });
+    }
+  });
+}
+
+function setUsers(users) {
+  ulistEl.innerHTML = (users || []).map(u =>
+    `<li class="${u===myUsername?'me':''}">
+      <span class="udot"></span>${esc(u)}${u===myUsername?' (você)':''}
+    </li>`
+  ).join('');
+}
+
+function setStatus(state) {
+  const map = { on: ['on', 'conectado'], off: ['off', 'desconectado'] };
+  const [cls, label] = map[state] || map.on;
+  sdot.className = `dot ${cls}`;
+  stxt.textContent = label;
+}
+
+async function ensureSession() {
+  if (!myUsername || healing) return false;
+  healing = true;
+  try {
+    const res = await fetch('/resume', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId, username: myUsername, since: lastEventTs }),
+    });
+    const data = await res.json();
+    if (!res.ok) return false;
+    sessionId = data.session_id;
+    if (!sessionId) return false;
+    applyHistory(data.history);
+    if (data.users) setUsers(data.users);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    healing = false;
+  }
+}
+
+function closeSSE() {
+  if (eventSource) { eventSource.close(); eventSource = null; }
+}
+
+function startSSE() {
+  if (!sessionId) return;
+  closeSSE();
+  eventSource = new EventSource(
+    `/events?session=${encodeURIComponent(sessionId)}`,
+    { withCredentials: true },
+  );
+  eventSource.onopen = () => setStatus('on');
+  eventSource.onmessage = e => {
+    const ev = JSON.parse(e.data);
+    if (ev.type === 'chat') {
+      addMsg({ type: 'chat', username: ev.username, text: ev.text, ts: ev.ts, id: ev.id });
+    } else if (ev.type === 'user_joined' || ev.type === 'user_left') {
+      if (ev.ts) lastEventTs = Math.max(lastEventTs, ev.ts);
+      if (ev.users) setUsers(ev.users);
+    }
+  };
+  eventSource.onerror = async () => {
+    closeSSE();
+    if (await ensureSession()) startSSE();
+  };
+}
+
+function startHeartbeat() {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(async () => {
+    if (!myUsername) return;
+    try {
+      const res = await fetch('/heartbeat', {
+        method: 'POST',
+        credentials: 'include',
+        headers: apiHeaders(),
+        body: '{}',
+      });
+      if (res.status === 503 || res.status === 401) {
+        if (await ensureSession()) startSSE();
+      }
+    } catch {
+      if (await ensureSession()) startSSE();
+    }
+  }, 4000);
+}
+
+async function login(username) {
+  const res = await fetch('/login', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, client_id: clientId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Erro no login');
+  return data;
+}
+
+async function postMessage(text) {
+  if (!sessionId) return false;
+  const payload = { text };
+  const res = await fetch('/message', {
+    method: 'POST',
+    credentials: 'include',
+    headers: apiHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (res.ok) return true;
+  if (res.status === 503 || res.status === 401) {
+    if (await ensureSession()) {
+      const retry = await fetch('/message', {
+        method: 'POST',
+        credentials: 'include',
+        headers: apiHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return retry.ok;
+    }
+  }
+  return false;
+}
+
+async function flushOutbox() {
+  while (outbox.length) {
+    const text = outbox[0];
+    if (await postMessage(text)) outbox.shift();
+    else break;
+  }
+}
+
+async function sendMessage() {
+  const text = msgIn.value.trim();
+  if (!text) return;
+  msgIn.value = '';
+  outbox.push(text);
+  await flushOutbox();
+}
+
+async function startChat(username) {
+  let data;
+  try {
+    data = await login(username);
+  } catch (e) {
+    errEl.textContent = e.message;
+    joinBtn.disabled = false;
+    return;
+  }
+
+  sessionId = data.session_id;
+  if (!sessionId) {
+    errEl.textContent = 'Resposta de login inválida.';
+    joinBtn.disabled = false;
+    return;
+  }
+  myUsername = data.username;
+  lastEventTs = 0;
+  seenIds.clear();
+
+  loginEl.style.display = 'none';
+  chatEl.style.display = 'flex';
+  protoTag.textContent = '[failover transparente]';
+  msgIn.disabled = false;
+  sendBtn.disabled = false;
+
+  applyHistory(data.history);
+  setUsers(data.users || []);
+  setStatus('on');
+  startSSE();
+  startHeartbeat();
+}
+
+async function logout() {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  closeSSE();
+  await fetch('/logout', {
+    method: 'POST',
+    credentials: 'include',
+    headers: apiHeaders(),
+  }).catch(() => {});
+  localStorage.removeItem(CLIENT_KEY);
+  location.reload();
+}
+
+// ── Eventos ────────────────────────────────────────────────────────────────
+joinBtn.onclick = () => {
+  const n = unameEl.value.trim();
+  if (!n) { errEl.textContent = 'Informe um apelido.'; return; }
+  errEl.textContent = '';
+  joinBtn.disabled = true;
+  startChat(n);
+};
+
+unameEl.onkeydown = e => { if (e.key === 'Enter') joinBtn.click(); };
+sendBtn.onclick   = sendMessage;
+msgIn.onkeydown   = e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+};
+$('leave').onclick = logout;
+</script>
+</body>
+</html>

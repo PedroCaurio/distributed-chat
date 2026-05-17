@@ -5,65 +5,65 @@
 ```text
 ┌─────────────┐   HTTP/SSE    ┌──────────────────────────────────┐
 │  Navegador  │ ────────────► │  Fly.io (máquina 1 ou 2)         │
-│  (React)    │               │  ┌────────────┐   TCP    ┌───────┐ │
-└─────────────┘               │  │ client/    │ ───────► │server/│ │
-                              │  │ :8080 HTTP │  :9000   │ chat  │ │
-                              │  └────────────┘          └───┬───┘ │
-                              └──────────────────────────────┼─────┘
-                                                             │
-                                                    ┌────────▼────────┐
-                                                    │ Redis (Upstash) │
-                                                    └─────────────────┘
+│ index.html  │               │  ┌────────────┐   TCP    ┌──────┐ │
+└─────────────┘               │  │  proxy.py  │ ───────► │server│ │
+                              │  │  :8080     │  :9000   │ .py  │ │
+                              │  └────────────┘          └──┬───┘ │
+                              └───────────────────────────┼─────┘
+                                                          │
+                                                 ┌────────▼────────┐
+                                                 │ Redis (Upstash) │
+                                                 └─────────────────┘
 ```
 
-O navegador **nunca** abre socket TCP com o servidor de chat. Isso é feito pelo processo **cliente** em Python — atendendo ao enunciado (cliente com thread de recepção + servidor com thread por conexão).
+O navegador **não** abre socket TCP com o servidor de chat. O **proxy** (`proxy.py`) faz isso — atendendo ao enunciado (cliente com thread de recepção + servidor com thread por conexão).
 
-## Papéis dos pacotes
+## Papéis dos módulos
 
-| Pasta | Papel |
-|-------|--------|
-| `frontend/` | Telas React (login, sala de chat) |
-| `client/` | Servidor HTTP para o browser + proxy TCP (thread recv por usuário) |
-| `server/` | Servidor de chat TCP (thread por conexão) |
-| `common/` | Formato das mensagens no socket (JSON por linha) |
-| `stack/` | Liga servidor + cliente no mesmo processo (produção e `LOCAL_run.ps1`) |
+| Arquivo | Papel |
+|---------|--------|
+| `index.html` | Interface web (login, sala, lista de online) |
+| `proxy.py` | Servidor HTTP para o browser + ponte TCP (thread recv por usuário) |
+| `server.py` | Servidor de chat TCP (thread por conexão) |
+| `protocol.py` | Formato das mensagens (JSON por linha — NDJSON) |
+| `redis_backend.py` | Histórico, sessões, pub/sub entre VMs |
+| `affinity.py` | Cookie + `fly-replay` para manter HTTP na VM certa |
+| `stack.py` | Sobe `server.py` e `proxy.py` no mesmo processo (produção) |
 
 ## Caminho de uma mensagem
 
-1. Usuário digita no React e clica enviar.
-2. Navegador faz `POST /messages` (HTTP) para o **cliente**.
-3. Cliente envia `{"type":"message",...}` pelo **socket TCP** ao **servidor**.
-4. Servidor valida, salva no **Redis** e avisa as outras instâncias (pub/sub).
-5. Servidor envia frame `chat` a todos os TCP conectados.
-6. Thread **recv** do cliente recebe o frame e encaminha ao navegador via **SSE** (`GET /events`).
+1. Usuário digita e envia no navegador.
+2. `POST /message` (HTTP) chega ao **proxy**.
+3. Proxy envia `{"type":"message",...}` pelo **socket TCP** ao **servidor**.
+4. Servidor valida, grava no **Redis** e publica no canal pub/sub.
+5. Servidor faz broadcast TCP local; outras VMs recebem via Redis.
+6. Proxy recebe o evento (TCP e/ou Redis) e encaminha ao navegador via **SSE** (`GET /events`).
 
-Todas as mensagens passam pelo servidor antes de chegar aos outros — requisito do trabalho.
+Todas as mensagens passam pelo servidor antes de chegar aos demais — requisito do trabalho.
 
-## Threads (ponto central da avaliação)
+## Threads
 
 | Local | Implementação |
 |-------|----------------|
-| Servidor | `ClientSession` em `server/session.py` estende `threading.Thread` — uma por conexão |
-| Cliente | `SocketBridge._recv_loop` em `client/socket_bridge.py` — uma por usuário logado |
-| Servidor (2 VMs) | Thread que escuta o canal Redis pub/sub e repete para os TCP locais |
+| Servidor | `ClientSession(threading.Thread)` — uma por conexão TCP |
+| Proxy | `TCPSession._recv_thread` — uma por usuário logado |
+| Servidor / Proxy | Thread daemon no subscriber Redis pub/sub |
+| Proxy HTTP | `ThreadingHTTPServer` — uma thread por requisição HTTP |
 
-## Duas máquinas no Fly (failover)
+## Failover (duas máquinas Fly)
 
-- Comando: `fly scale count 2`.
-- Cada máquina tem seu próprio processo; conexões TCP dos usuários ficam na memória **daquela** máquina.
-- O Redis guarda o que precisa sobreviver à queda de uma VM (histórico, pub/sub).
-- Cookie `fly_machine_id` + middleware em `client/affinity.py` mantêm o HTTP do mesmo usuário na VM certa.
-
-Se uma VM cair: usuário faz login de novo na VM viva; `GET /history?since=` recupera mensagens após reconectar.
+- `fly scale count 2` — duas réplicas do container.
+- Estado compartilhado no Redis (histórico, presença, pub/sub).
+- Cookie `fly_machine_id` + `affinity.py` mantêm o HTTP do mesmo usuário na VM que detém a sessão TCP.
+- Se uma VM cair: `POST /resume` na VM viva + histórico `since` + novo SSE.
 
 ## Como executar
 
 | Situação | Comando |
 |----------|---------|
-| Produção / Fly / Docker | `python -m stack` |
-| No seu PC | `.\LOCAL_run.ps1` + `.\LOCAL_front.ps1` |
-| Só servidor TCP (debug) | `python -m server` |
-| Só cliente HTTP (debug) | `python -m client` (servidor TCP já deve estar rodando) |
+| Produção / Fly / Docker | `python stack.py` |
+| No seu PC | `.\LOCAL_run.ps1` |
+| Só servidor TCP (debug) | `python server.py` |
+| Só proxy (debug) | `python proxy.py` (servidor TCP já rodando) |
 
-Mais detalhes de deploy: [DEPLOY.md](DEPLOY.md).  
-Contratos HTTP/TCP: [API.md](API.md).
+Mais: [DEPLOY.md](DEPLOY.md) · Contratos: [API.md](API.md)

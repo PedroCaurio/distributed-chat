@@ -1,28 +1,22 @@
 # Onde está cada requisito do enunciado
 
-Use esta tabela na apresentação para abrir o arquivo certo na hora.
-
-| Requisito do enunciado | Arquivo principal | O que mostrar |
-|------------------------|-------------------|---------------|
-| Socket TCP entre cliente e servidor | `common/protocol.py` | Tipos de mensagem (`login`, `message`, `chat`…) |
-| Servidor com thread por conexão | `server/session.py` | Classe `ClientSession(threading.Thread)` |
-| Cliente com thread de recepção | `client/socket_bridge.py` | `_recv_loop` na thread `socket-recv-*` |
-| Servidor HTTP embutido no cliente | `client/app.py` | Rotas `/login`, `/messages`, `/events` |
-| Interface web | `frontend/src/` | Telas de login e chat |
-| Mensagens passam pelo servidor | `server/chat_core.py` | Grava e publica no Redis antes do broadcast |
-| Tolerância a falhas (réplica) | `fly.toml` + `docs/DEPLOY.md` | 2 máquinas Fly + Redis compartilhado |
-| Entrada em produção | `stack/__main__.py` | `python -m stack` (TCP + HTTP juntos) |
-| Deploy online | `Dockerfile`, `fly.toml` | Build e URL pública |
+| Requisito | Arquivo | O que mostrar na apresentação |
+|-----------|---------|-------------------------------|
+| Socket TCP | `protocol.py` | `encode` / `decode`, tipos `login`, `message`, `chat` |
+| Thread por conexão (servidor) | `server.py` | `class ClientSession(threading.Thread)` |
+| Thread de recepção (cliente) | `proxy.py` | `TCPSession._recv_loop` |
+| HTTP embutido no cliente | `proxy.py` | `ProxyHandler`, rotas `/login`, `/message`, `/events` |
+| Interface web | `index.html` | Login, chat, lista online |
+| Mensagens via servidor | `server.py` | `append_history` + `_publish_event` |
+| Tolerância a falhas | `fly.toml`, `affinity.py`, `redis_backend.py` | 2 VMs + Redis + demo `fly machine stop` |
+| Produção | `stack.py`, `Dockerfile` | `python stack.py` no container |
 
 ## Fluxo em uma frase
 
-Navegador → **HTTP** → `client/` → **socket TCP** → `server/` → **Redis** → broadcast → de volta ao navegador via **SSE**.
+Navegador → **HTTP** → `proxy.py` → **TCP** → `server.py` → **Redis** → broadcast → **SSE** de volta ao navegador.
 
-## Testes automáticos (opcional no PC)
+## Testes
 
 ```powershell
-$env:PYTHONPATH = (Get-Location).Path
 python -m pytest -q
 ```
-
-Testes com prefixo `LOCAL_` no nome são smoke checks locais; `LOCAL_test_redis.py` só roda com `REDIS_URL` definido.

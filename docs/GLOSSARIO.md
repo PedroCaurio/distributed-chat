@@ -1,65 +1,50 @@
 # Glossário — termos do projeto
 
-Leia este arquivo primeiro se alguma palavra nos outros documentos não estiver clara.
-
 ## Socket (TCP)
 
-Conexão de rede entre dois programas. No nosso chat, o **cliente** (processo Python que atende o navegador) abre um **socket TCP** com o **servidor** de chat. As mensagens trafegam como linhas de texto JSON (protocolo NDJSON em `common/protocol.py`).
-
-**Por que importa no enunciado:** o trabalho exige comunicação por sockets, não apenas HTTP entre navegador e servidor final.
+Conexão de rede entre dois programas. O **proxy** abre um socket TCP com o **servidor** de chat. Mensagens em linhas JSON (NDJSON) — ver `protocol.py`.
 
 ## Thread
 
-“Fio” de execução dentro do mesmo processo. Vários trechos de código rodam em paralelo sem abrir outro programa.
+Trecho de código que executa em paralelo no mesmo processo.
 
-| Onde | O que faz |
-|------|-----------|
-| `server/session.py` | Uma thread **por usuário conectado** no servidor TCP |
-| `client/socket_bridge.py` | Uma thread **por usuário** só para **receber** mensagens do servidor (`socket-recv-<nome>`) |
+| Onde | Função |
+|------|--------|
+| `server.py` | Uma thread **por conexão** TCP (`ClientSession`) |
+| `proxy.py` | Uma thread **por usuário** só para **receber** do servidor (`recv-*`) |
 
 ## Cliente e servidor (enunciado)
 
-- **Servidor (`server/`):** recebe todas as mensagens, grava no Redis e repassa aos demais.
-- **Cliente (`client/`):** no nosso projeto é o **proxy** entre navegador e servidor TCP. O enunciado pede um processo cliente com thread de recepção — é este pacote.
+- **Servidor (`server.py`):** centraliza mensagens, Redis e broadcast.
+- **Cliente (`proxy.py`):** proxy entre navegador e servidor TCP — processo cliente com thread de recepção.
 
-## HTTP
+## HTTP / SSE
 
-Protocolo que o **navegador** usa para falar com o cliente Python. Rotas como `POST /login` e `GET /events` estão em `client/app.py` (framework FastAPI).
+- **HTTP:** navegador fala com `proxy.py` (`POST /login`, `POST /message`, …).
+- **SSE (Server-Sent Events):** `GET /events` mantém conexão aberta; servidor envia `data: {...}\n\n`. **Não é WebSocket.**
 
-## SSE (Server-Sent Events)
+## Redis (Upstash)
 
-Forma de o servidor **empurrar** atualizações para o navegador por HTTP (sem WebSocket). O front abre `GET /events` e recebe eventos de chat em tempo real.
-
-## Redis
-
-Banco em memória na nuvem (usamos **Upstash**). Guarda histórico de mensagens, sessões e um canal **pub/sub** para as duas máquinas do Fly trocarem eventos.
+Histórico, sessões, lista de online e canal **pub/sub** para sincronizar as duas VMs do Fly.
 
 ## Fly.io
 
-Serviço onde hospedamos o app. Cada **máquina (VM)** roda um container com servidor TCP + cliente HTTP. Com **duas máquinas**, se uma cair, a outra continua — tolerância a falhas do enunciado.
-
-## Docker
-
-Empacota o projeto (Python + build do React) numa imagem. O `Dockerfile` na raiz é o que o Fly usa no deploy. Comando de produção dentro do container: `python -m stack`.
+Hospedagem com duas máquinas (`fly scale count 2`). Se uma cair, a outra continua — tolerância a falhas do enunciado.
 
 ## NDJSON
 
-“JSON por linha”: cada mensagem no socket é uma linha UTF-8 com um objeto JSON. Facilita ler com `readline` na thread de recepção.
+Um objeto JSON por linha, terminada em `\n`. Facilita `readline` / buffer na thread de recepção.
 
-## Failover (tolerância a falhas)
+## Failover
 
-1. Duas instâncias no Fly (`fly scale count 2`).
-2. Estado compartilhado no Redis (histórico não se perde na VM que sobrou).
-3. Se a VM do usuário cair, ele faz login de novo; `GET /history?since=` recupera mensagens após reconectar o SSE.
+1. Duas instâncias no Fly.
+2. Redis compartilhado (histórico sobrevive).
+3. `POST /resume` + `GET /history?since=` após queda da VM do usuário.
 
-## Arquivos com prefixo `LOCAL_`
-
-Só para desenvolvimento e testes no seu computador — **não** vão para a demonstração em aula:
+## Arquivos `LOCAL_*`
 
 | Arquivo | Função |
 |---------|--------|
-| `LOCAL_run.ps1` | Sobe `python -m stack` no PC |
-| `LOCAL_front.ps1` | Sobe o React com Vite |
-| `server/tests/LOCAL_*.py` | Testes opcionais (Redis real, imports) |
+| `LOCAL_run.ps1` | Sobe `python stack.py` no PC |
 
-A demonstração oficial usa a URL pública do Fly (`docs/DEPLOY.md`).
+A demonstração oficial usa a URL pública: [DEPLOY.md](DEPLOY.md).

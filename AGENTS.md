@@ -8,15 +8,15 @@ Chat multiusuário com sockets, cliente-servidor, threads, interface web e toler
 
 | Requisito | Arquivo |
 |-----------|---------|
-| Sockets TCP | `common/protocol.py`, `server/session.py`, `client/socket_bridge.py` |
-| Thread por conexão (servidor) | `ClientSession` em `server/session.py` |
-| Thread recv (cliente) | `SocketBridge._recv_loop` em `client/socket_bridge.py` |
-| HTTP embutido no cliente | `client/app.py` |
-| Navegador sem instalar | React + deploy Fly.io |
-| Failover | 2 VMs Fly + Upstash Redis + reconexão SSE/histórico |
-| Sem WebSocket no transporte real | Browser: HTTP + SSE; backend: TCP |
+| Sockets TCP | `protocol.py`, `server.py`, `proxy.py` |
+| Thread por conexão (servidor) | `ClientSession` em `server.py` |
+| Thread recv (cliente/proxy) | `TCPSession._recv_loop` em `proxy.py` |
+| HTTP embutido no cliente | `proxy.py` + `index.html` |
+| Navegador sem instalar | `index.html` servido pelo proxy |
+| Failover | 2 VMs Fly + Upstash Redis + `affinity.py` |
+| Sem WebSocket no transporte | Browser: HTTP + SSE; backend: TCP |
 
-## Documentação para humanos
+## Documentação
 
 - [docs/GLOSSARIO.md](docs/GLOSSARIO.md)
 - [docs/ARQUITETURA.md](docs/ARQUITETURA.md)
@@ -24,19 +24,15 @@ Chat multiusuário com sockets, cliente-servidor, threads, interface web e toler
 - [docs/MAPA_CODIGO.md](docs/MAPA_CODIGO.md)
 - [docs/DEPLOY.md](docs/DEPLOY.md)
 - [docs/API.md](docs/API.md)
+- [docs/AVALIACAO_ENUNCIADO.md](docs/AVALIACAO_ENUNCIADO.md)
 
 ## Produção vs local
 
 | Modo | Comando |
 |------|---------|
-| Fly / Docker | `python -m stack` |
-| PC do desenvolvedor | `LOCAL_run.ps1` + `LOCAL_front.ps1` |
+| Fly / Docker | `python stack.py` |
+| PC do desenvolvedor | `LOCAL_run.ps1` |
 
-## Checklist de avaliação
+## URL pública
 
-- [ ] URL pública Fly (não localhost na demo)
-- [ ] Múltiplos usuários (2 abas)
-- [ ] Username + histórico
-- [ ] Explicar threads e sockets TCP
-- [ ] Demo failover: `fly machine stop`
-- [ ] `requirements.txt` + README + relatório PDF
+https://chatnet-v2.fly.dev/
