@@ -2,7 +2,7 @@
 
 import queue
 
-from proxy import InboundDemux
+from chatnet.proxy import InboundDemux
 
 
 def test_login_rpc_does_not_fan_out() -> None:

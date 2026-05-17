@@ -50,7 +50,7 @@ Teste: [https://chatnet-v2.fly.dev/health](https://chatnet-v2.fly.dev/health) �
 
 ## O que o container executa
 
-`Dockerfile` → `CMD ["python", "stack.py"]`:
+`Dockerfile` → `CMD ["python", "-m", "chatnet"]` (pacote em `src/chatnet/`):
 
 - `server.py` — TCP na porta **9000** (interna)
 - `proxy.py` — HTTP na porta **8080** (pública via Fly)

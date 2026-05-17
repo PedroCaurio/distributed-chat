@@ -19,9 +19,9 @@ Mostrar diagrama em [ARQUITETURA.md](ARQUITETURA.md):
 
 Abrir na IDE:
 
-1. `server.py` → `class ClientSession(threading.Thread)` e `run()`
-2. `proxy.py` → `TCPSession._recv_loop`
-3. `protocol.py` → NDJSON uma linha por mensagem
+1. `src/chatnet/server.py` → `class ClientSession(threading.Thread)` e `run()`
+2. `src/chatnet/proxy.py` → `TCPSession._recv_loop`
+3. `src/chatnet/protocol.py` → NDJSON uma linha por mensagem
 
 Frase-chave: *“Cada aba do navegador gera uma conexão TCP; o servidor cria uma thread por socket; o proxy cria uma thread só para receber.”*
 
@@ -35,7 +35,7 @@ Frase-chave: *“Cada aba do navegador gera uma conexão TCP; o servidor cria um
 
 - Apelido + lista de online
 - Histórico ao entrar
-- Interface em `index.html` (HTML/CSS/JS puro, sem npm no deploy)
+- Interface em `src/chatnet/static/index.html` (HTML/CSS/JS puro, sem npm no deploy)
 
 ## 6. Perguntas esperadas
 

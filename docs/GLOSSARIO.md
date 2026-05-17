@@ -10,13 +10,13 @@ Trecho de código que executa em paralelo no mesmo processo.
 
 | Onde | Função |
 |------|--------|
-| `server.py` | Uma thread **por conexão** TCP (`ClientSession`) |
-| `proxy.py` | Uma thread **por usuário** só para **receber** do servidor (`recv-*`) |
+| `src/chatnet/server.py` | Uma thread **por conexão** TCP (`ClientSession`) |
+| `src/chatnet/proxy.py` | Uma thread **por usuário** só para **receber** do servidor (`recv-*`) |
 
 ## Cliente e servidor (enunciado)
 
-- **Servidor (`server.py`):** centraliza mensagens, Redis e broadcast.
-- **Cliente (`proxy.py`):** proxy entre navegador e servidor TCP — processo cliente com thread de recepção.
+- **Servidor (`src/chatnet/server.py`):** centraliza mensagens, Redis e broadcast.
+- **Cliente (`src/chatnet/proxy.py`):** proxy entre navegador e servidor TCP — processo cliente com thread de recepção.
 
 ## HTTP / SSE
 

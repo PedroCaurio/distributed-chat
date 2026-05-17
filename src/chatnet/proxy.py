@@ -38,9 +38,9 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 from pathlib import Path
 
-from affinity import AffinityStore, affinity_extra_headers, local_machine_id, maybe_replay
-from protocol import decode, encode
-from redis_backend import RedisBackend
+from .affinity import AffinityStore, affinity_extra_headers, local_machine_id, maybe_replay
+from .protocol import decode, encode
+from .redis_backend import RedisBackend
 
 # ── Configuração ──────────────────────────────────────────────────────────────
 SERVER_HOST = os.environ.get("SERVER_HOST", os.environ.get("CHAT_SERVER_HOST", "localhost"))
@@ -50,7 +50,7 @@ REDIS_URL   = os.environ.get("REDIS_URL", "")
 _affinity_store: AffinityStore | None = AffinityStore(REDIS_URL) if REDIS_URL else None
 _redis: RedisBackend | None = RedisBackend(REDIS_URL) if REDIS_URL else None
 
-FRONTEND_HTML = (Path(__file__).parent / "index.html").read_text(encoding="utf-8")
+FRONTEND_HTML = (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
 
 logging.basicConfig(
     level=logging.INFO,

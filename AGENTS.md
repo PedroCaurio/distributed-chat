@@ -8,13 +8,12 @@ Chat multiusuário com sockets, cliente-servidor, threads, interface web e toler
 
 | Requisito | Arquivo |
 |-----------|---------|
-| Sockets TCP | `protocol.py`, `server.py`, `proxy.py` |
-| Thread por conexão (servidor) | `ClientSession` em `server.py` |
-| Thread recv (cliente/proxy) | `TCPSession._recv_loop` em `proxy.py` |
-| HTTP embutido no cliente | `proxy.py` + `index.html` |
-| Navegador sem instalar | `index.html` servido pelo proxy |
-| Failover | 2 VMs Fly + Upstash Redis + `affinity.py` |
-| Sem WebSocket no transporte | Browser: HTTP + SSE; backend: TCP |
+| Sockets TCP | `src/chatnet/protocol.py`, `server.py`, `proxy.py` |
+| Thread por conexão (servidor) | `src/chatnet/server.py` → `ClientSession` |
+| Thread recv (cliente/proxy) | `src/chatnet/proxy.py` → `TCPSession._recv_loop` |
+| HTTP embutido no cliente | `src/chatnet/proxy.py` |
+| Interface web | `src/chatnet/static/index.html` |
+| Failover | 2 VMs Fly + Redis + `src/chatnet/affinity.py` |
 
 ## Documentação
 
@@ -24,14 +23,13 @@ Chat multiusuário com sockets, cliente-servidor, threads, interface web e toler
 - [docs/MAPA_CODIGO.md](docs/MAPA_CODIGO.md)
 - [docs/DEPLOY.md](docs/DEPLOY.md)
 - [docs/API.md](docs/API.md)
-- [docs/AVALIACAO_ENUNCIADO.md](docs/AVALIACAO_ENUNCIADO.md)
 
 ## Produção vs local
 
 | Modo | Comando |
 |------|---------|
-| Fly / Docker | `python stack.py` |
-| PC do desenvolvedor | `LOCAL_run.ps1` |
+| Fly / Docker | `python -m chatnet` |
+| PC do desenvolvedor | `.\LOCAL_run.ps1` ou `python stack.py` |
 
 ## URL pública
 

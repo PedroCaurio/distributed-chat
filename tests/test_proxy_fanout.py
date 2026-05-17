@@ -2,7 +2,14 @@
 
 import queue
 
-from proxy import InboundDemux, ProxySession, TCPSession, _fanout_redis_event, _sessions, _sessions_lock
+from chatnet.proxy import (
+    InboundDemux,
+    ProxySession,
+    TCPSession,
+    _fanout_redis_event,
+    _sessions,
+    _sessions_lock,
+)
 
 
 def test_fanout_redis_delivers_chat() -> None:

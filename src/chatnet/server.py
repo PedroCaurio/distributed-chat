@@ -26,8 +26,8 @@ import time
 import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from protocol import decode, encode
-from redis_backend import RedisBackend
+from .protocol import decode, encode
+from .redis_backend import RedisBackend
 
 # ── Configuração ──────────────────────────────────────────────────────────────
 HOST      = os.environ.get("HOST", "0.0.0.0")

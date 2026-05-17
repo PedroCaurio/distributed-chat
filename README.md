@@ -6,12 +6,12 @@ Chat multiusuário em tempo real com **sockets TCP**, **threads** e interface **
 
 | Item | Onde está |
 |------|-----------|
-| Socket TCP cliente ↔ servidor | `protocol.py`, `proxy.py`, `server.py` |
-| Thread por conexão no servidor | `server.py` → `ClientSession` |
-| Thread de recepção no cliente | `proxy.py` → `TCPSession._recv_loop` |
-| HTTP embutido para o navegador | `proxy.py` + `index.html` |
+| Socket TCP cliente ↔ servidor | `src/chatnet/protocol.py`, `proxy.py`, `server.py` |
+| Thread por conexão no servidor | `src/chatnet/server.py` → `ClientSession` |
+| Thread de recepção no cliente | `src/chatnet/proxy.py` → `TCPSession._recv_loop` |
+| HTTP embutido para o navegador | `src/chatnet/proxy.py` + `static/index.html` |
 | Tolerância a falhas (2 instâncias) | Fly.io + Redis (Upstash) |
-| Histórico e apelidos | `redis_backend.py`, `index.html` |
+| Histórico e apelidos | `src/chatnet/redis_backend.py`, `index.html` |
 
 Detalhes: [docs/MAPA_CODIGO.md](docs/MAPA_CODIGO.md) · Avaliação: [docs/AVALIACAO_ENUNCIADO.md](docs/AVALIACAO_ENUNCIADO.md)
 
@@ -33,6 +33,7 @@ docker run -d -p 6379:6379 redis:7-alpine
 copy .env.example .env
 # Edite REDIS_URL
 .\LOCAL_run.ps1
+# ou: $env:PYTHONPATH="src"; python -m chatnet
 ```
 
 Abra [http://localhost:8080](http://localhost:8080).
@@ -66,14 +67,17 @@ python -m pytest -q
 ## Estrutura do repositório
 
 ```
-protocol.py      # NDJSON sobre TCP
-server.py        # Servidor de chat (thread por conexão)
-proxy.py         # Proxy HTTP → TCP (thread recv + SSE)
-redis_backend.py # Histórico, sessões, pub/sub
-affinity.py      # Afinidade entre VMs no Fly
-stack.py         # Produção: sobe server + proxy
-index.html       # Interface web (sem npm)
-tests/           # pytest
+src/chatnet/           # Código Python do chat
+  protocol.py          # NDJSON sobre TCP
+  server.py            # Servidor TCP (thread por conexão)
+  proxy.py             # Proxy HTTP → TCP (thread recv + SSE)
+  redis_backend.py     # Histórico, sessões, pub/sub
+  affinity.py          # Afinidade entre VMs no Fly
+  stack.py             # Sobe server + proxy
+  static/index.html    # Interface web (sem npm)
+stack.py               # Atalho: python stack.py (raiz)
+tests/                 # pytest
+docs/                  # Documentação
 ```
 
 ## Relatório PDF

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from redis_backend import RedisBackend
+from chatnet.redis_backend import RedisBackend
 
 
 def test_claim_and_drop_clears_client_binding(backend: RedisBackend) -> None:

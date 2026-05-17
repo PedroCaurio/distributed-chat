@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import redis
 
 if TYPE_CHECKING:
-    from redis_backend import RedisBackend
+    from .redis_backend import RedisBackend
 
 COOKIE_NAME = "fly_machine_id"
 AFFINITY_PREFIX = "proxy:affinity:"

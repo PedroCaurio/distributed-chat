@@ -23,5 +23,7 @@ $env:SERVER_HOST = "127.0.0.1"
 $env:SERVER_PORT = "9000"
 $env:PORT = "8080"
 
+$env:PYTHONPATH = Join-Path $PSScriptRoot "src"
+
 Write-Host "ChatNet v2 — http://localhost:8080" -ForegroundColor Cyan
-python stack.py
+python -m chatnet

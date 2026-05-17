@@ -1,30 +1,22 @@
 """
-stack.py — Ponto de entrada em produção (Fly.io / Docker)
-=========================================================
-Sobe o servidor TCP e o proxy HTTP no mesmo processo do container.
-
-  - server.py → porta SERVER_PORT (padrão 9000), thread por conexão TCP
-  - proxy.py  → porta PORT (padrão 8080), HTTP para o navegador
-
-Uso: python stack.py
+stack.py — Atalho na raiz do repositório
+========================================
+Equivale a ``python -m chatnet``. Mantido para compatibilidade com scripts
+e deploy que chamam ``python stack.py``.
 """
 
 from __future__ import annotations
 
-import threading
-import time
+import sys
+from pathlib import Path
 
+# Garante que ``src`` está no path ao rodar da raiz sem PYTHONPATH
+_ROOT = Path(__file__).resolve().parent
+_SRC = _ROOT / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
-def main() -> None:
-    """Inicia o servidor TCP em thread daemon e o proxy HTTP no thread principal."""
-    import server
-
-    threading.Thread(target=server.main, name="tcp-server", daemon=True).start()
-    time.sleep(0.5)
-    import proxy
-
-    proxy.main()
-
+from chatnet.stack import main  # noqa: E402
 
 if __name__ == "__main__":
     main()

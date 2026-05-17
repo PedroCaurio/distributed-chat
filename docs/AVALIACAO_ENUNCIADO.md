@@ -36,7 +36,7 @@ Checklist objetivo para o trabalho **ChatNet v2** (implementação única neste 
 
 | Critério | Atendido? |
 |----------|-----------|
-| Código modular (`protocol`, `server`, `proxy`, `redis_backend`, …) | **Sim** |
+| Código modular (`src/chatnet/`: protocol, server, proxy, …) | **Sim** |
 | Comentário no topo de cada script | **Sim** |
 | Docstrings em funções e classes | **Sim** |
 | `requirements.txt` | **Sim** |
