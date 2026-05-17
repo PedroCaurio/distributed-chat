@@ -1,39 +1,54 @@
 # distributed-chat
 
-Chat multiusuário com **arquitetura cliente-servidor**, **sockets TCP nativos**, **threads** e interface **web** (zero instalação na demonstração).
+Chat multiusuário para a disciplina de redes: **sockets TCP**, **threads**, interface **web** e hospedagem **online** (Fly.io).
 
-## Arquitetura (enunciado)
+## Comece por aqui (grupo)
 
-```text
-Navegador ──HTTP/SSE──► client/ (servidor HTTP embutido + thread recv TCP)
-                              │
-                              ▼ sockets
-                         server/ (1 thread por conexão TCP)
-                              │
-                              ▼
-                         Redis (histórico, sessões, pub/sub)
-                              │
-                    2 instâncias Fly (failover)
-```
-
-| Requisito | Implementação |
-|-----------|----------------|
-| Múltiplos usuários | Sala global; mensagens via servidor |
-| Thread por conexão no servidor | `server/session.py` → `ClientSession(threading.Thread)` |
-| Thread de recv no cliente | `client/socket_bridge.py` → `_recv_loop` por usuário |
-| Navegador + HTTP embutido no cliente | `client/app.py` (FastAPI) + React em `frontend/` |
-| Tolerância a falhas | `fly scale count 2` + Redis + reconexão SSE |
-| Sockets (sem WebSocket) | NDJSON sobre TCP (`common/protocol.py`) |
+| Documento | Conteúdo |
+|-----------|----------|
+| [docs/GLOSSARIO.md](docs/GLOSSARIO.md) | Explica socket, thread, HTTP, Redis, Docker, Fly… |
+| [docs/ARQUITETURA.md](docs/ARQUITETURA.md) | Como as peças se conectam |
+| [docs/MAPA_CODIGO.md](docs/MAPA_CODIGO.md) | Onde está cada requisito do enunciado |
+| [docs/APRESENTACAO.md](docs/APRESENTACAO.md) | Roteiro da apresentação presencial |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Publicar no Fly.io |
+| [docs/API.md](docs/API.md) | Rotas HTTP e mensagens TCP |
 
 ## Demonstração em aula
 
-1. Abra `https://SEU_APP.fly.dev` (após deploy).
-2. Login com username → converse na sala global.
-3. **Nada para instalar** nos PCs dos alunos.
+1. Abra `https://SEU_APP.fly.dev` (após o deploy).
+2. Cada pessoa escolhe um **username** e conversa na sala global.
+3. Nada para instalar nos computadores — só o navegador.
 
-## Deploy
+Failover (opcional): pare uma máquina com `fly machine stop` — ver [docs/DEPLOY.md](docs/DEPLOY.md).
 
-Guia completo: **[docs/DEPLOY.md](docs/DEPLOY.md)**
+## Requisitos do enunciado × implementação
+
+| Requisito | Onde no código |
+|-----------|----------------|
+| Vários usuários em tempo real | Sala global via servidor |
+| Thread por conexão no servidor | `server/session.py` |
+| Thread recv no cliente | `client/socket_bridge.py` |
+| Navegador + HTTP embutido | `client/app.py` + `frontend/` |
+| Tolerância a falhas | 2 VMs Fly + Redis Upstash |
+| Sockets (sem WebSocket no transporte real) | TCP + NDJSON em `common/protocol.py` |
+
+## Estrutura do repositório
+
+```text
+distributed-chat/
+├── client/          # HTTP para o browser + TCP para o servidor
+├── server/          # Servidor de chat TCP + Redis
+├── stack/           # Produção: python -m stack
+├── frontend/        # React
+├── common/          # Protocolo das mensagens
+├── docs/            # Documentação do grupo
+├── LOCAL_run.ps1    # Só para testar no seu PC
+├── LOCAL_front.ps1
+├── Dockerfile
+└── fly.toml
+```
+
+## Deploy resumido
 
 ```powershell
 fly auth login
@@ -44,56 +59,31 @@ fly scale count 2
 fly open
 ```
 
-## Estrutura
+Detalhes: [docs/DEPLOY.md](docs/DEPLOY.md).
 
-```text
-distributed-chat/
-├── client/          # Cliente: HTTP para o browser + TCP para o servidor
-├── server/          # Servidor de chat TCP + Redis
-├── stack/           # Entrypoint produção (ambos os processos)
-├── frontend/        # React (build → servido pelo client)
-├── common/          # Protocolo NDJSON/TCP
-├── docs/
-├── Dockerfile
-└── fly.toml
-```
+## Testar no seu computador
 
-## Desenvolvimento local
+Arquivos **`LOCAL_*`** são apenas para desenvolvimento local:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 copy .env.example .env
-# Edite REDIS_URL no .env
+# Edite REDIS_URL
 
-$env:PYTHONPATH = (Get-Location).Path
-python -m stack
+.\LOCAL_run.ps1
+# Outro terminal:
+.\LOCAL_front.ps1
 ```
 
-Outro terminal:
-
-```bash
-cd frontend && npm install && npm run dev
-```
-
-`frontend/.env`: `VITE_API_URL=/api`
-
-## Testes
+Testes:
 
 ```powershell
 $env:PYTHONPATH = (Get-Location).Path
 python -m pytest -q
 ```
 
-## Documentação
-
-| Arquivo | Conteúdo |
-| --- | --- |
-| [docs/DEPLOY.md](docs/DEPLOY.md) | Deploy Fly.io |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitetura detalhada |
-| [docs/PAYLOADS.md](docs/PAYLOADS.md) | API HTTP do cliente + frames TCP |
-
 ## Entrega AVA
 
-Inclua no `.zip`: código-fonte, `requirements.txt`, este `README.md` e o **relatório em PDF**.
+Inclua no `.zip`: código-fonte, `requirements.txt`, este `README.md` e o **relatório em PDF** (estrutura no enunciado da disciplina).

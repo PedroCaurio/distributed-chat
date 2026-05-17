@@ -1,21 +1,19 @@
-# Front-end (React + Vite)
+# Pacote `frontend/` — interface React
 
-Interface do chat. Em produção o build é embutido no Docker e servido pelo `server/` na mesma URL Fly.io.
+Telas de login e chat. Em **produção**, o build vira arquivos estáticos servidos pelo `client/` na mesma URL do Fly.
 
-## Desenvolvimento
+## Desenvolvimento no PC
+
+Use o script [../LOCAL_front.ps1](../LOCAL_front.ps1) (sobe Vite com proxy `/api` → porta 8080).
+
+Ou manualmente:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Configure `frontend/.env`:
-
-```env
-VITE_API_URL=/api
-```
-
-O `vite.config.ts` encaminha `/api` para `http://127.0.0.1:8080` (servidor local).
+`frontend/.env`: `VITE_API_URL=/api`
 
 ## Build
 
@@ -23,8 +21,8 @@ O `vite.config.ts` encaminha `/api` para `http://127.0.0.1:8080` (servidor local
 npm run build
 ```
 
-Saída em `dist/` — copiada automaticamente pelo `Dockerfile` na raiz.
+A pasta `dist/` entra na imagem Docker automaticamente.
 
 ## Deploy
 
-Não publique o front separadamente. Use o deploy unificado: [../docs/DEPLOY.md](../docs/DEPLOY.md).
+Não publique o front separado. Deploy unificado: [../docs/DEPLOY.md](../docs/DEPLOY.md).

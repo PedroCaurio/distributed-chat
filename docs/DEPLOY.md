@@ -1,12 +1,16 @@
 # Deploy no Fly.io
 
-Stack: **cliente HTTP** (público) + **servidor TCP** (interno) + **Upstash Redis**.
+Hospedagem usada na demonstração: URL pública, sem instalar nada nos PCs da turma.
 
-## Pré-requisitos
+## O que você precisa
 
-- Conta [fly.io](https://fly.io)
-- URL Redis [Upstash](https://console.upstash.com) (`rediss://...`)
-- [Fly CLI](https://fly.io/docs/flyctl/install/):
+| Item | Para quê |
+|------|----------|
+| [Conta Fly.io](https://fly.io) | Hospedar o app |
+| [Upstash Redis](https://console.upstash.com) | Histórico e sincronização entre 2 máquinas |
+| [Fly CLI](https://fly.io/docs/flyctl/install/) | Comandos `fly deploy`, etc. |
+
+Instalar CLI no Windows:
 
 ```powershell
 powershell -Command "iwr https://fly.io/install.ps1 -useb | iex"
@@ -15,8 +19,9 @@ fly auth login
 
 ## Primeiro deploy
 
+Na pasta do projeto:
+
 ```powershell
-cd c:\Users\pedro\OneDrive\Documentos\Faculdade\distributed-chat
 fly launch --no-deploy --copy-config --name distributed-chat-SEUNOME --region gru
 fly secrets set REDIS_URL="rediss://default:TOKEN@HOST.upstash.io:6379"
 fly deploy --no-cache
@@ -24,54 +29,62 @@ fly scale count 2
 fly open
 ```
 
-URL: `https://distributed-chat-SEUNOME.fly.dev`
+URL típica: `https://distributed-chat-SEUNOME.fly.dev`
 
-Teste: `https://SEU_APP.fly.dev/health` → `{"status":"ok","role":"client",...}`
+Teste rápido: `https://SEU_APP.fly.dev/health` → JSON com `"status":"ok"`.
 
-## Uso em aula
+## O que o Docker faz aqui
 
-1. Compartilhe a URL `https://....fly.dev`.
-2. Cada pessoa abre no navegador, faz login e conversa.
-3. **Não** é necessário instalar Python nem Node nos PCs dos alunos.
+O `Dockerfile`:
 
-### Demo failover
+1. Compila o React (`npm run build`).
+2. Instala dependências Python.
+3. Copia `server/`, `client/`, `stack/`, `common/`.
+4. Inicia com `python -m stack` (servidor TCP na porta 9000 **dentro** do container; HTTP na 8080 **pública**).
+
+O Fly lê `fly.toml` e publica a porta 8080 na internet.
+
+## Variáveis importantes
+
+| Variável | Valor típico | Significado |
+|----------|--------------|-------------|
+| `REDIS_URL` | secret Fly | Conexão Upstash |
+| `PORT` | 8080 | HTTP do cliente (navegador) |
+| `CHAT_SERVER_PORT` | 9000 | TCP do servidor (interno) |
+| `CHAT_SERVER_HOST` | 127.0.0.1 | Servidor no mesmo container |
+
+## Demo de failover na aula
 
 ```powershell
 fly machines list
 fly machine stop <ID>
 ```
 
-Usuários veem reconexão e banner *“Conexão restabelecida”*.
-
-## Variáveis
-
-| Variável | Onde | Descrição |
-|----------|------|-----------|
-| `REDIS_URL` | secret | Upstash |
-| `PORT` | 8080 | HTTP do **cliente** (público) |
-| `CHAT_SERVER_PORT` | 9000 | TCP do **servidor** (interno) |
-| `CHAT_SERVER_HOST` | 127.0.0.1 | Servidor no mesmo container |
-
-## Desenvolvimento local
-
-```powershell
-$env:PYTHONPATH = (Get-Location).Path
-# .env com REDIS_URL
-python -m stack
-```
-
-```bash
-cd frontend && npm run dev
-```
-
-`frontend/.env`: `VITE_API_URL=/api`
+Explique: uma réplica parou; usuários reconectam; histórico no Redis; segunda máquina segue ativa.
 
 ## Problemas comuns
 
-| Sintoma | Solução |
-|---------|---------|
-| Login falha / 503 | Verifique `REDIS_URL`; servidor TCP precisa do Redis |
-| Mensagens somem / não aparecem | Com 2 VMs, faça redeploy após correção de afinidade; limpe cookies do site |
-| `username já está em uso` | `DEL chat:user:NOME` no console Upstash |
-| Cold start lento | Abra `/health` antes da aula ou UptimeRobot |
-| Build front falha | `fly deploy --no-cache` |
+| Sintoma | O que verificar |
+|---------|-----------------|
+| Login falha / 503 | `REDIS_URL` no `fly secrets`; logs com `fly logs` |
+| Mensagens não aparecem com 2 VMs | Redeploy após mudanças; limpar cookies do site |
+| `username já está em uso` | Sessão antiga no Redis — apagar chave no console Upstash |
+| App “dormindo” | Abrir `/health` antes da aula |
+
+## Desenvolvimento no PC (não é a demo oficial)
+
+Use os scripts com prefixo **LOCAL**:
+
+```powershell
+copy .env.example .env
+# Edite REDIS_URL
+.\LOCAL_run.ps1
+```
+
+Outro terminal:
+
+```powershell
+.\LOCAL_front.ps1
+```
+
+Abra `http://localhost:5173`.

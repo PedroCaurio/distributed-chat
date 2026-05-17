@@ -1,46 +1,42 @@
-# Enunciado do Trabalho
+# Guia rápido do repositório (IA e integrantes)
 
-Desenvolva um chat multiusuário usando sockets, com arquitetura cliente-servidor e uso de threads. O chat deve permitir que vários usuários conversem em tempo real, com todas as mensagens passando primeiro pelo servidor, que as envia aos demais usuários. O servidor deve ter alguma forma de tolerância a falhas (exemplo: servidor secundário ativado automaticamente).
+## Enunciado
 
-## Implementação neste repositório
+Chat multiusuário com sockets, cliente-servidor, threads, interface web e tolerância a falhas.
 
-| Requisito | Onde |
-|-----------|------|
-| Sockets TCP nativos | `common/protocol.py`, `server/session.py`, `client/socket_bridge.py` |
+## Onde está cada requisito
+
+| Requisito | Arquivo |
+|-----------|---------|
+| Sockets TCP | `common/protocol.py`, `server/session.py`, `client/socket_bridge.py` |
 | Thread por conexão (servidor) | `ClientSession` em `server/session.py` |
 | Thread recv (cliente) | `SocketBridge._recv_loop` em `client/socket_bridge.py` |
-| HTTP embutido no cliente | `client/app.py` (FastAPI + uvicorn) |
-| Navegador sem instalar | React servido pelo cliente; deploy Fly.io |
-| Failover | 2 VMs Fly + Upstash Redis + `GET /history` + reconexão SSE |
-| **Sem WebSocket** | Browser usa HTTP + SSE; transporte real é TCP |
+| HTTP embutido no cliente | `client/app.py` |
+| Navegador sem instalar | React + deploy Fly.io |
+| Failover | 2 VMs Fly + Upstash Redis + reconexão SSE/histórico |
+| Sem WebSocket no transporte real | Browser: HTTP + SSE; backend: TCP |
 
-## Arquitetura
+## Documentação para humanos
 
-```text
-Browser → HTTPS → client/ (8080) → TCP → server/ (9000) → Redis
-                      ↑                      ↑
-              thread recv/user        thread/conn
-```
+- [docs/GLOSSARIO.md](docs/GLOSSARIO.md)
+- [docs/ARQUITETURA.md](docs/ARQUITETURA.md)
+- [docs/APRESENTACAO.md](docs/APRESENTACAO.md)
+- [docs/MAPA_CODIGO.md](docs/MAPA_CODIGO.md)
+- [docs/DEPLOY.md](docs/DEPLOY.md)
+- [docs/API.md](docs/API.md)
 
-Produção: `python -m stack` (servidor TCP + cliente HTTP no mesmo container).
+## Produção vs local
 
-## Stack
-
-- **Python:** FastAPI (cliente), threading, socket, Redis
-- **Front:** React, Vite
-- **Infra:** Fly.io, Upstash
-
-## Documentação
-
-- `docs/ARCHITECTURE.md`
-- `docs/PAYLOADS.md`
-- `docs/DEPLOY.md`
+| Modo | Comando |
+|------|---------|
+| Fly / Docker | `python -m stack` |
+| PC do desenvolvedor | `LOCAL_run.ps1` + `LOCAL_front.ps1` |
 
 ## Checklist de avaliação
 
-- [ ] URL pública Fly (sem instalar nada)
-- [ ] Múltiplos usuários (2 abas / navegadores)
+- [ ] URL pública Fly (não localhost na demo)
+- [ ] Múltiplos usuários (2 abas)
 - [ ] Username + histórico
-- [ ] Explicar threads (servidor + cliente) e sockets TCP
-- [ ] Demo failover: `fly machine stop` → reconexão
+- [ ] Explicar threads e sockets TCP
+- [ ] Demo failover: `fly machine stop`
 - [ ] `requirements.txt` + README + relatório PDF

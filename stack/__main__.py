@@ -1,7 +1,8 @@
 """
-Ponto de entrada de produção: servidor TCP + cliente HTTP no mesmo container.
+Produção (Fly/Docker): servidor TCP + cliente HTTP no mesmo processo.
 
-Fly.io expõe a porta HTTP do cliente (8080); o servidor TCP escuta em 9000 local.
+HTTP :8080 (navegador) · TCP :9000 (chat, apenas dentro do container).
+Para testar no PC use LOCAL_run.ps1.
 """
 
 from __future__ import annotations
