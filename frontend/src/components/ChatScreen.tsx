@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, KeyboardEvent, useMemo, useState } from 'react';
 import { Search, Send, Settings, Smile } from 'lucide-react';
 import { demoLog } from '../lib/demoLog';
 import { sendMessage } from '../services/chatService';
@@ -92,18 +92,21 @@ export default function ChatScreen({
     }
   }
 
+  function handleDraftKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== 'Enter' || event.shiftKey) {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
+
   return (
     <main className="chat-page">
       <header className="top-bar">
         <div className="top-bar-identity">
           <span className="app-name">DS Chat</span>
           <span className="user-pill">{currentUser.username}</span>
-        </div>
-
-        <div className="top-bar-actions">
-          <button className="icon-action" type="button" aria-label="Configurações" title="Configurações">
-            <Settings size={19} aria-hidden="true" />
-          </button>
         </div>
       </header>
 
@@ -169,11 +172,9 @@ export default function ChatScreen({
               placeholder={`Mensagem como ${currentUser.username}...`}
               value={messageDraft}
               onChange={(event) => setMessageDraft(event.target.value)}
+              onKeyDown={handleDraftKeyDown}
               disabled={sending}
             />
-            <button className="icon-action" type="button" aria-label="Inserir emoji" title="Inserir emoji">
-              <Smile size={20} aria-hidden="true" />
-            </button>
             <button
               className="send-action"
               type="submit"
